@@ -10,13 +10,7 @@ use crate::errors::Error;
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
     pub host_and_port: String,
-    pub directories: Vec<DirEntry>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct DirEntry {
     pub directory: PathBuf,
-    pub url_path_prefix: String,
     pub content_encodings: Option<Vec<String>>,
 }
 
@@ -29,11 +23,8 @@ impl Config {
 
         Ok(Config {
             host_and_port: "127.0.0.1:3000".to_string(),
-            directories: Vec::from([DirEntry {
-                directory: curr_dir,
-                url_path_prefix: "/".to_string(),
-                content_encodings: None,
-            }]),
+            directory: curr_dir,
+            content_encodings: None,
         })
     }
 
@@ -63,15 +54,13 @@ impl Config {
             }
         };
 
-        for dir_entry in &mut config.directories {
-            let target_directory =
-                match fs::canonicalize(parent_dir.join(dir_entry.directory.clone())).await {
-                    Ok(pb) => pb,
-                    Err(e) => return Err(Error::Io(e)),
-                };
+        let target_directory =
+            match fs::canonicalize(parent_dir.join(config.directory.clone())).await {
+                Ok(pb) => pb,
+                Err(e) => return Err(Error::Io(e)),
+            };
 
-            dir_entry.directory = target_directory;
-        }
+        config.directory = target_directory;
 
         Ok(config)
     }

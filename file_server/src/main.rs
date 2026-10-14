@@ -1,5 +1,6 @@
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder;
+use response::ResponseParams;
 use std::env;
 use std::path::PathBuf;
 use tokio::net::TcpListener;
@@ -23,7 +24,8 @@ async fn main() -> Result<(), Error> {
         Err(e) => return Err(Error::Io(e)),
     };
 
-    let svc = service::Svc::from(&conf);
+    let response_params = ResponseParams::from(&conf.directory, &conf.content_encodings);
+    let svc = service::Svc::from(response_params);
 
     loop {
         let (stream, _remote_address) = match listener.accept().await {
