@@ -44,11 +44,8 @@ A valid [JSON configuration file](./demo/config.example.json) matches the follow
 ```JSON
 {
     "host_and_port": "127.0.0.1:4000",
-	"directories": [{
-		"directory": "./",
-		"url_path_prefix": "/",
-		"content_encodings": ["zstd"]
-	}]
+	"directory": "./",
+	"content_encodings": ["zstd"]
 }
 
 ```
