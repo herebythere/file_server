@@ -43,7 +43,7 @@ A valid [JSON configuration file](./demo/config.example.json) matches the follow
 
 ```JSON
 {
-    "host_and_port": "127.0.0.1:4000",
+	"host_and_port": "127.0.0.1:4000",
 	"directory": "./",
 	"content_encodings": ["zstd"]
 }
@@ -59,7 +59,7 @@ The `content_encodings` property is optional.
 Bash the following command to serve files based on a an example configuration:
 
 ```sh
-file_server demo/demo.example.json
+file_server --directory=./ --host=127.0.0.1 --port=4000 --content_encodings=zstd,deflate
 ```
 
 Open a browser and visit `http://localhost:3000` and an encoded version of `index.html` will be delivered.

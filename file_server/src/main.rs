@@ -19,13 +19,16 @@ async fn main() -> Result<(), Error> {
         Err(e) => return Err(e),
     };
 
-    let listener = match TcpListener::bind(&conf.host_and_port).await {
+    let host_and_port = conf.host.to_string() + ":" + &conf.port;
+    let response_params = ResponseParams::from(&conf.directory, &conf.content_encodings);
+    let svc = service::Svc::from(response_params);
+
+    let listener = match TcpListener::bind(&host_and_port).await {
         Ok(lstnr) => lstnr,
         Err(e) => return Err(Error::Io(e)),
     };
 
-    let response_params = ResponseParams::from(&conf.directory, &conf.content_encodings);
-    let svc = service::Svc::from(response_params);
+    println!("file_server @ http://{}", host_and_port);
 
     loop {
         let (stream, _remote_address) = match listener.accept().await {
@@ -44,7 +47,7 @@ async fn main() -> Result<(), Error> {
                 .serve_connection(io, svc)
                 .await
             {
-                println!("service error:\n{}", e);
+                println!("{}", e);
             }
         });
     }
