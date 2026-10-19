@@ -63,8 +63,6 @@ pub async fn build_response(
     compose_entry_details_response(req, res_params).await
 }
 
-// just make this an isolate function for now
-// get_details(base_directory, uri_path)
 async fn compose_entry_details_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
@@ -91,7 +89,10 @@ pub async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Optio
         _ => return None,
     };
 
-    // if symlink?
+    // immediately drop symlink, feels dangerous
+    if metadata.is_symlink() {
+        return None;
+    }
 
     match metadata.is_dir() {
         true => build_directory_entry(&metadata, &uri_path, directory).await,
