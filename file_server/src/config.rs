@@ -1,17 +1,13 @@
-use serde::{Deserialize, Serialize};
-use serde_json;
 use std::env;
-use std::path;
 use std::path::PathBuf;
-use tokio::fs;
 
 use crate::errors::Error;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub host_and_port: String,
+    pub host: String,
+    pub port: String,
     pub directory: PathBuf,
-    pub content_encodings: Option<Vec<String>>,
+    pub content_encodings: Vec<String>,
 }
 
 impl Config {
@@ -22,46 +18,52 @@ impl Config {
         };
 
         Ok(Config {
-            host_and_port: "127.0.0.1:3000".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: "3000".to_string(),
             directory: curr_dir,
-            content_encodings: None,
+            content_encodings: Vec::new(),
         })
     }
 
-    pub async fn try_from(filepath: &PathBuf) -> Result<Config, Error> {
-        let config_json = match fs::read_to_string(filepath).await {
-            Ok(r) => r,
-            Err(e) => return Err(Error::Io(e)),
+    pub async fn try_from(args: Vec<String>) -> Result<Config, Error> {
+        let mut config = match Config::new() {
+            Ok(conf) => conf,
+            Err(e) => return Err(e),
         };
 
-        let mut config: Config = match serde_json::from_str(&config_json) {
-            Ok(j) => j,
-            Err(e) => return Err(Error::SerdeJson(e)),
-        };
-
-        // get target directory
-        let config_path = match path::absolute(&filepath) {
-            Ok(pb) => pb,
-            Err(e) => return Err(Error::Io(e)),
-        };
-
-        let parent_dir = match config_path.parent() {
-            Some(p) => p,
-            _ => {
-                return Err(Error::Custom(
-                    "parent directory of config not found".to_string(),
-                ));
-            }
-        };
-
-        let target_directory =
-            match fs::canonicalize(parent_dir.join(config.directory.clone())).await {
-                Ok(pb) => pb,
-                Err(e) => return Err(Error::Io(e)),
-            };
-
-        config.directory = target_directory;
+        get_params_from_args(&mut config, args);
 
         Ok(config)
+    }
+}
+
+fn get_params_from_args(config: &mut Config, args: Vec<String>) {
+    for arg in args {
+        let trimmed_arg = arg.strip_prefix("--host=");
+        if let Some(host) = trimmed_arg {
+            config.host = host.to_string();
+            continue;
+        }
+
+        let trimmed_arg = arg.strip_prefix("--port=");
+        if let Some(port) = trimmed_arg {
+            config.port = port.to_string();
+            continue;
+        }
+
+        let trimmed_arg = arg.strip_prefix("--directory=");
+        if let Some(directory) = trimmed_arg {
+            config.directory = PathBuf::from(directory);
+            continue;
+        }
+
+        let trimmed_arg = arg.strip_prefix("--content-encodings=");
+        if let Some(content_encodings) = trimmed_arg {
+            let mut split_encodings: Vec<String> = Vec::new();
+            for encoding in content_encodings.split(",") {
+                split_encodings.push(encoding.to_string());
+            }
+            config.content_encodings = split_encodings;
+        }
     }
 }

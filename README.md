@@ -39,30 +39,15 @@ curl localhost:3000
 
 ### Configuration
 
-A valid [JSON configuration file](./demo/config.example.json) matches the following schema:
-
-```JSON
-{
-    "host_and_port": "127.0.0.1:4000",
-	"directory": "./",
-	"content_encodings": ["zstd"]
-}
-
-```
-
-Filepaths can be absolute or relative from the filepath of the JSON configuration file.
-
-The `content_encodings` property is optional.
-
-#### Run with configuration
-
-Bash the following command to serve files based on a an example configuration:
+The following command-line arguments are valid paramters: 
 
 ```sh
-file_server demo/demo.example.json
+file_server /
+	--host=0.0.0.0 /
+	--port=4000 /
+	--directory=../another_directory /
+	--content-encodings=gzip,deflate,br,zstd
 ```
-
-Open a browser and visit `http://localhost:3000` and an encoded version of `index.html` will be delivered.
 
 ### Accept-Encoding
 

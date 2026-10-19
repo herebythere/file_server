@@ -2,7 +2,6 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder;
 use response::ResponseParams;
 use std::env;
-use std::path::PathBuf;
 use tokio::net::TcpListener;
 
 mod config;
@@ -14,18 +13,22 @@ use errors::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let conf = match get_config().await {
+    let args = env::args().collect();
+    let conf = match Config::try_from(args).await {
         Ok(c) => c,
         Err(e) => return Err(e),
     };
 
-    let listener = match TcpListener::bind(&conf.host_and_port).await {
+    let host_and_port = conf.host.to_string() + ":" + &conf.port;
+    let response_params = ResponseParams::from(&conf.directory, &conf.content_encodings);
+    let svc = service::Svc::from(response_params);
+
+    let listener = match TcpListener::bind(&host_and_port).await {
         Ok(lstnr) => lstnr,
         Err(e) => return Err(Error::Io(e)),
     };
 
-    let response_params = ResponseParams::from(&conf.directory, &conf.content_encodings);
-    let svc = service::Svc::from(response_params);
+    println!("file_server @ http://{}", host_and_port);
 
     loop {
         let (stream, _remote_address) = match listener.accept().await {
@@ -44,18 +47,18 @@ async fn main() -> Result<(), Error> {
                 .serve_connection(io, svc)
                 .await
             {
-                println!("service error:\n{}", e);
+                println!("{}", e);
             }
         });
     }
 }
 
-async fn get_config() -> Result<Config, Error> {
-    match env::args().nth(1) {
-        Some(conf_path_arg) => {
-            let conf_pathbuf = PathBuf::from(conf_path_arg);
-            return Config::try_from(&conf_pathbuf).await;
-        }
-        _ => Config::new(),
-    }
-}
+// async fn get_config() -> Result<Config, Error> {
+//     match env::args().nth(1) {
+//         Some(conf_path_arg) => {
+//             let conf_pathbuf = PathBuf::from(conf_path_arg);
+//             return Config::try_from(&conf_pathbuf).await;
+//         }
+//         _ => Config::new(),
+//     }
+// }
