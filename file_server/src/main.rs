@@ -52,13 +52,3 @@ async fn main() -> Result<(), Error> {
         });
     }
 }
-
-// async fn get_config() -> Result<Config, Error> {
-//     match env::args().nth(1) {
-//         Some(conf_path_arg) => {
-//             let conf_pathbuf = PathBuf::from(conf_path_arg);
-//             return Config::try_from(&conf_pathbuf).await;
-//         }
-//         _ => Config::new(),
-//     }
-// }
