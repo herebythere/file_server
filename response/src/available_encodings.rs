@@ -7,7 +7,7 @@ pub struct AvailableEncodings {
 }
 
 impl AvailableEncodings {
-    pub fn from(potential_encodings: &Option<Vec<String>>) -> AvailableEncodings {
+    pub fn from(potential_encodings: &Vec<String>) -> AvailableEncodings {
         let mut av_enc = AvailableEncodings {
             gzip: false,
             deflate: false,
@@ -15,15 +15,13 @@ impl AvailableEncodings {
             zstd: false,
         };
 
-        if let Some(encodings) = potential_encodings {
-            for encoding in encodings {
-                match encoding.as_str() {
-                    "gzip" => av_enc.gzip = true,
-                    "deflate" => av_enc.deflate = true,
-                    "br" => av_enc.br = true,
-                    "zstd" => av_enc.zstd = true,
-                    _ => {}
-                }
+        for encoding in potential_encodings {
+            match encoding.as_str() {
+                "gzip" => av_enc.gzip = true,
+                "deflate" => av_enc.deflate = true,
+                "br" => av_enc.br = true,
+                "zstd" => av_enc.zstd = true,
+                _ => {}
             }
         }
 

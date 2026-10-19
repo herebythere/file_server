@@ -20,7 +20,7 @@ pub struct ResponseParams {
 }
 
 impl ResponseParams {
-    pub fn from(directory: &PathBuf, content_encodings: &Option<Vec<String>>) -> ResponseParams {
+    pub fn from(directory: &PathBuf, content_encodings: &Vec<String>) -> ResponseParams {
         let available_encodings = AvailableEncodings::from(content_encodings);
 
         ResponseParams {
