@@ -34,10 +34,7 @@ impl ResponseParams {
 // normalize lexically in nightly
 pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Option<PathBuf> {
     let uri_path = req.uri().path();
-    let mut normalized_url_path = match convert_to_os_path(&uri_path) {
-        Some(url_path) => url_path,
-        _ => return None,
-    };
+    let mut normalized_url_path = convert_to_os_path(&uri_path);
 
     if req.uri().path().ends_with("/") {
         normalized_url_path.push("index.html");
@@ -53,11 +50,9 @@ pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -
 
 pub fn get_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Option<PathBuf> {
     let uri_path = req.uri().path();
-    let mut normalized_url_path = match convert_to_os_path(&uri_path) {
-        Some(url_path) => url_path,
-        _ => return None,
-    };
+    let mut normalized_url_path = convert_to_os_path(&uri_path);
 
+    // why? might not be neccessary
     if req.uri().path().ends_with("/") {
         normalized_url_path.push("");
     }
@@ -70,7 +65,7 @@ pub fn get_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Op
     }
 }
 
-pub fn convert_to_os_path(path_buf_str: &str) -> Option<PathBuf> {
+pub fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
 
     let splitted = path_buf_str.split("/");
@@ -83,5 +78,5 @@ pub fn convert_to_os_path(path_buf_str: &str) -> Option<PathBuf> {
         }
     }
 
-    Some(normalized_uri_path)
+    normalized_uri_path
 }
