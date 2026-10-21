@@ -1,3 +1,4 @@
+use config::Config;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder;
 use response::ResponseParams;
@@ -5,14 +6,10 @@ use std::env;
 use tokio::net::TcpListener;
 
 mod config;
-mod errors;
 mod service;
 
-use config::Config;
-use errors::Error;
-
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), std::io::Error> {
     let args = env::args().collect();
     let conf = match Config::try_from(args).await {
         Ok(c) => c,
@@ -25,7 +22,7 @@ async fn main() -> Result<(), Error> {
 
     let listener = match TcpListener::bind(&host_and_port).await {
         Ok(lstnr) => lstnr,
-        Err(e) => return Err(Error::Io(e)),
+        Err(e) => return Err(e),
     };
 
     println!("file_server @ http://{}", host_and_port);

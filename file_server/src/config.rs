@@ -1,8 +1,6 @@
 use std::env;
 use std::path::PathBuf;
 
-use crate::errors::Error;
-
 pub struct Config {
     pub host: String,
     pub port: String,
@@ -11,10 +9,10 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new() -> Result<Config, Error> {
+    pub fn new() -> Result<Config, std::io::Error> {
         let curr_dir = match env::current_dir() {
             Ok(pb) => pb,
-            Err(e) => return Err(Error::Io(e)),
+            Err(e) => return Err(e),
         };
 
         Ok(Config {
@@ -25,7 +23,7 @@ impl Config {
         })
     }
 
-    pub async fn try_from(args: Vec<String>) -> Result<Config, Error> {
+    pub async fn try_from(args: Vec<String>) -> Result<Config, std::io::Error> {
         let mut config = match Config::new() {
             Ok(conf) => conf,
             Err(e) => return Err(e),
