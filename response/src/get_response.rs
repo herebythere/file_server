@@ -8,10 +8,10 @@ use std::path::PathBuf;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
 
+use crate::available_encodings::{add_extension, get_encodings};
 use crate::content_type::get_content_type;
 use crate::last_resort_response;
 use crate::range_response;
-use crate::response_paths::{add_extension, get_encodings};
 use crate::serialize_details;
 use crate::utils_flyweight::{
     get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,

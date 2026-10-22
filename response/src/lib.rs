@@ -4,7 +4,6 @@ mod get_response;
 mod head_response;
 mod last_resort_response;
 mod range_response;
-mod response_paths;
 mod responses;
 mod serialize_details;
 mod utils_flyweight;
