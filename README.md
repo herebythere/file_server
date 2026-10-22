@@ -1,4 +1,4 @@
-# file_server
+# File server
 
 An `http` file server written in rust using [tokio](https://tokio.rs/) and
 [hyper](https://hyper.rs/).
