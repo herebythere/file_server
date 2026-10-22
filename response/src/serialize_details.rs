@@ -8,8 +8,7 @@ use serde_json;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::Error as IoError;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tokio::fs;
 

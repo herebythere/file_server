@@ -22,6 +22,7 @@ pub async fn build_response(
     res_params: ResponseParams,
 ) -> Result<BoxedResponse, hyper::http::Error> {
     // check for a json details request
+    // should be on file
     if let Some(res) = serialize_details::build_response(&req, &res_params).await {
         return res;
     };
@@ -50,20 +51,8 @@ async fn build_req_path_response(
     };
 
     let content_type = get_content_type(&filepath);
-    if let Some(res) = compose_encoded_response(&filepath, content_type, &encodings).await {
-        return Some(res);
-    };
-
-    compose_response(&filepath, content_type, None).await
-}
-
-async fn compose_encoded_response(
-    filepath: &PathBuf,
-    content_type: &str,
-    encodings: &Vec<String>,
-) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     for enc in encodings {
-        let encoded_path = match add_extension(filepath, enc) {
+        let encoded_path = match add_extension(&filepath, enc) {
             Some(enc_pth) => enc_pth,
             _ => continue,
         };
@@ -73,7 +62,7 @@ async fn compose_encoded_response(
         }
     }
 
-    None
+    compose_response(&filepath, content_type, None).await
 }
 
 async fn compose_response(
