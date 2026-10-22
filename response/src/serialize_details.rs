@@ -21,6 +21,7 @@ use crate::utils_flyweight::{
 // Need to jouge up for some clean json stuff, option should be property exists or no not NULL
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FileDetails {
+    is_file: bool,
     is_dir: bool,
     is_symlink: bool,
     file_name: String,
@@ -163,6 +164,7 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBu
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
 
+    // THIS FEELS OFF
     let url_path: PathBuf = match req_path.strip_prefix(base_path) {
         Ok(fp) => fp.to_path_buf(),
         Err(_) => PathBuf::from(""),
@@ -170,6 +172,7 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBu
 
     FileDetails {
         is_dir: metadata.is_dir(),
+        is_file: metadata.is_file(),
         is_symlink: metadata.is_symlink(),
         file_name,
         url_path,
