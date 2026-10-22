@@ -34,38 +34,21 @@ impl ResponseParams {
 // normalize lexically in nightly
 pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Option<PathBuf> {
     let uri_path = req.uri().path();
-    let mut normalized_url_path = convert_to_os_path(&uri_path);
+    let url_path_as_os_path = convert_to_os_path(&uri_path);
+    let joined_path = directory.join(url_path_as_os_path);
 
-    if req.uri().path().ends_with("/") {
-        normalized_url_path.push("index.html");
-    }
+    let normalized = match normalize_path_lexicographically(&joined_path) {
+        Some(pth) => pth,
+        _ => return None,
+    };
 
-    let joined_path = directory.join(normalized_url_path);
-    // this is where to normalize
-    match joined_path.starts_with(directory) {
-        true => Some(joined_path),
+    match normalized.starts_with(directory) {
+        true => Some(normalized),
         _ => None,
     }
 }
 
-pub fn get_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Option<PathBuf> {
-    let uri_path = req.uri().path();
-    let mut normalized_url_path = convert_to_os_path(&uri_path);
-
-    // why? might not be neccessary
-    if req.uri().path().ends_with("/") {
-        normalized_url_path.push("");
-    }
-
-    let joined_path = directory.join(normalized_url_path);
-    // this is where to normalize
-    match joined_path.starts_with(directory) {
-        true => Some(joined_path),
-        _ => None,
-    }
-}
-
-pub fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
+fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
 
     let splitted = path_buf_str.split("/");
@@ -78,5 +61,32 @@ pub fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
         }
     }
 
+    if path_buf_str.ends_with("/") {
+        normalized_uri_path.push("index.html");
+    }
+
     normalized_uri_path
+}
+
+// return with a path or an error
+fn normalize_path_lexicographically(path_buf: &PathBuf) -> Option<PathBuf> {
+    let mut normalized_stack: Vec<Component> = Vec::new();
+    for part in path_buf.components() {
+        match part {
+            Component::ParentDir => {
+                if let None = normalized_stack.pop() {
+                    return None;
+                }
+            }
+            Component::CurDir => {}
+            _ => normalized_stack.push(part),
+        }
+    }
+
+    let mut normalized = PathBuf::new();
+    for part in normalized_stack {
+        normalized.push(part);
+    }
+
+    return Some(normalized);
 }

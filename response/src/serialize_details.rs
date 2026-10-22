@@ -14,7 +14,9 @@ use std::time::SystemTime;
 use tokio::fs;
 
 use crate::last_resort_response;
-use crate::utils_flyweight::{get_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404};
+use crate::utils_flyweight::{
+    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
+};
 
 // Need to jouge up for some clean json stuff, option should be property exists or no not NULL
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -67,7 +69,7 @@ async fn compose_entry_details_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    let req_path = match get_path_from_request(req, &res_params.directory) {
+    let req_path = match get_url_path_from_request(req, &res_params.directory) {
         Some(pth) => pth,
         _ => return None,
     };
