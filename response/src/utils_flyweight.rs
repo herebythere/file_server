@@ -48,7 +48,7 @@ pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -
     }
 }
 
-pub fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
+fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
 
     let splitted = path_buf_str.split("/");
