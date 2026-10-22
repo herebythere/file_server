@@ -97,6 +97,14 @@ Valid range sytanxes:
 <unit>=-<suffix-length>
 ```
 
+### Serialize details
+
+Details for a particular file or directory can be requested with some url params:
+
+```
+http://127.0.0.1:3000/?serialize_as=json
+```
+
 ## License
 
 `file_server` is released under the BSD 3-Clause License.
