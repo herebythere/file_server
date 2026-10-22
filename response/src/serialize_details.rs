@@ -22,6 +22,7 @@ use crate::utils_flyweight::{
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FileDetails {
     is_dir: bool,
+    is_symlink: bool,
     file_name: String,
     url_path: PathBuf,
     size: u64,
@@ -169,6 +170,7 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBu
 
     FileDetails {
         is_dir: metadata.is_dir(),
+        is_symlink: metadata.is_symlink(),
         file_name,
         url_path,
         created_at,
