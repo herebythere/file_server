@@ -66,7 +66,7 @@ pub async fn build_response(
     compose_entry_details_response(req, res_params).await
 }
 
-pub async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
+async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
     let metadata = match fs::metadata(&uri_path).await {
         Ok(m) => m,
         _ => return None,
