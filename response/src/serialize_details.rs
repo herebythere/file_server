@@ -1,29 +1,29 @@
+use crate::last_resort_response;
+use crate::utils_flyweight::{
+    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
+};
 use http_body_util::{BodyExt, Full};
-use hyper::body::Incoming;
-use hyper::header::{HeaderValue, CONTENT_TYPE};
-use hyper::http::{Request, Response};
 use hyper::StatusCode;
+use hyper::body::Incoming;
+use hyper::header::{CONTENT_TYPE, HeaderValue};
+use hyper::http::{Request, Response};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::Error as IoError;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tokio::fs;
-
-use crate::last_resort_response;
-use crate::utils_flyweight::{
-    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
-};
 
 // Need to jouge up for some clean json stuff, option should be property exists or no not NULL
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FileDetails {
+    is_file: bool,
     is_dir: bool,
+    is_symlink: bool,
     file_name: String,
-    url_path: PathBuf,
+    url_path: String,
     size: u64,
     created_at: Option<u128>,
     accessed_at: Option<u128>,
@@ -40,6 +40,7 @@ pub async fn build_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
+    // Di this at start of request send down function chain
     let params = match req.uri().query() {
         Some(prms) => prms,
         _ => return None,
@@ -69,7 +70,7 @@ async fn compose_entry_details_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    let req_path = match get_url_path_from_request(req, &res_params.directory) {
+    let req_path = match get_url_path_from_request(req, &res_params.directory, false) {
         Some(pth) => pth,
         _ => return None,
     };
@@ -85,7 +86,7 @@ async fn compose_entry_details_response(
     }
 }
 
-pub async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
+async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
     let metadata = match fs::metadata(&uri_path).await {
         Ok(m) => m,
         _ => return None,
@@ -162,15 +163,12 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBu
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
 
-    let url_path: PathBuf = match req_path.strip_prefix(base_path) {
-        Ok(fp) => fp.to_path_buf(),
-        Err(_) => PathBuf::from(""),
-    };
-
     FileDetails {
         is_dir: metadata.is_dir(),
+        is_file: metadata.is_file(),
+        is_symlink: metadata.is_symlink(),
         file_name,
-        url_path,
+        url_path: "".to_string(),
         created_at,
         accessed_at,
         modified_at,

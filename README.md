@@ -1,4 +1,4 @@
-# file_server
+# File server
 
 An `http` file server written in rust using [tokio](https://tokio.rs/) and
 [hyper](https://hyper.rs/).
@@ -95,6 +95,14 @@ Valid range sytanxes:
 <unit>=<range-start>-
 <unit>=<range-start>-<range-end>
 <unit>=-<suffix-length>
+```
+
+### Serialize details
+
+Details for a particular file or directory can be requested with some url params:
+
+```
+http://127.0.0.1:3000/?serialize_as=json
 ```
 
 ## License
