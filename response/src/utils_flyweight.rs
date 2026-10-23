@@ -3,7 +3,7 @@ use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use hyper::body::Incoming;
 use hyper::http::{Request, Response};
-use std::path::{Component, PathBuf};
+use std::path::{Component, MAIN_SEPARATOR, PathBuf};
 use tokio::io;
 
 pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
@@ -31,9 +31,13 @@ impl ResponseParams {
 
 // https://doc.rust-lang.org/std/path/struct.Path.html#method.normalize_lexically
 // normalize lexically in nightly
-pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Option<PathBuf> {
+pub fn get_url_path_from_request(
+    req: &Request<Incoming>,
+    directory: &PathBuf,
+    add_index_on_directory: bool,
+) -> Option<PathBuf> {
     let uri_path = req.uri().path();
-    let url_path_as_os_path = convert_to_os_path(&uri_path);
+    let url_path_as_os_path = convert_to_os_path(&uri_path, add_index_on_directory);
 
     let joined_path = directory.join(url_path_as_os_path);
     let normalized = match normalize_path_lexicographically(&joined_path) {
@@ -47,7 +51,7 @@ pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -
     }
 }
 
-fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
+fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
 
     let splitted = path_buf_str.split("/");
@@ -60,12 +64,14 @@ fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
         }
     }
 
-    if path_buf_str.ends_with("/") {
+    if add_index_on_directory && path_buf_str.ends_with(MAIN_SEPARATOR) {
         normalized_uri_path.push("index.html");
     }
 
     normalized_uri_path
 }
+
+// get url path from path(directory, pathbuf)
 
 // return with a path or an error
 fn normalize_path_lexicographically(path_buf: &PathBuf) -> Option<PathBuf> {

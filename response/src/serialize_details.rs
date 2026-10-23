@@ -23,7 +23,7 @@ pub struct FileDetails {
     is_dir: bool,
     is_symlink: bool,
     file_name: String,
-    url_path: PathBuf,
+    url_path: String,
     size: u64,
     created_at: Option<u128>,
     accessed_at: Option<u128>,
@@ -66,6 +66,26 @@ pub async fn build_response(
     compose_entry_details_response(req, res_params).await
 }
 
+async fn compose_entry_details_response(
+    req: &Request<Incoming>,
+    res_params: &ResponseParams,
+) -> Option<Result<BoxedResponse, hyper::http::Error>> {
+    let req_path = match get_url_path_from_request(req, &res_params.directory, false) {
+        Some(pth) => pth,
+        _ => return None,
+    };
+
+    let details = get_entry_details(&res_params.directory, &req_path).await;
+
+    match compose_response(details).await {
+        Some(res) => Some(res),
+        _ => Some(last_resort_response::build_response(
+            StatusCode::NOT_FOUND,
+            NOT_FOUND_404,
+        )),
+    }
+}
+
 async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
     let metadata = match fs::metadata(&uri_path).await {
         Ok(m) => m,
@@ -80,26 +100,6 @@ async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<En
     match metadata.is_dir() {
         true => build_directory_entry(&metadata, &uri_path, directory).await,
         _ => build_file_entry(&metadata, &uri_path, directory),
-    }
-}
-
-async fn compose_entry_details_response(
-    req: &Request<Incoming>,
-    res_params: &ResponseParams,
-) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    let req_path = match get_url_path_from_request(req, &res_params.directory) {
-        Some(pth) => pth,
-        _ => return None,
-    };
-
-    let details = get_entry_details(&res_params.directory, &req_path).await;
-
-    match compose_response(details).await {
-        Some(res) => Some(res),
-        _ => Some(last_resort_response::build_response(
-            StatusCode::NOT_FOUND,
-            NOT_FOUND_404,
-        )),
     }
 }
 
@@ -163,18 +163,12 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBu
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
 
-    // THIS FEELS OFF
-    let url_path: PathBuf = match req_path.strip_prefix(base_path) {
-        Ok(fp) => fp.to_path_buf(),
-        Err(_) => PathBuf::from(""),
-    };
-
     FileDetails {
         is_dir: metadata.is_dir(),
         is_file: metadata.is_file(),
         is_symlink: metadata.is_symlink(),
         file_name,
-        url_path,
+        url_path: "".to_string(),
         created_at,
         accessed_at,
         modified_at,

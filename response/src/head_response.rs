@@ -16,7 +16,7 @@ pub async fn build_response(
     req: Request<Incoming>,
     res_params: ResponseParams,
 ) -> Result<BoxedResponse, hyper::http::Error> {
-    if let Some(filepath) = get_url_path_from_request(&req, &res_params.directory) {
+    if let Some(filepath) = get_url_path_from_request(&req, &res_params.directory, true) {
         let content_type = get_content_type(&filepath);
         let encodings = get_encodings(&req, &res_params.available_encodings);
 
