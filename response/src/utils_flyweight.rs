@@ -51,6 +51,8 @@ pub fn get_url_path_from_request(
     }
 }
 
+pub fn get_url_path_from_pathbuf(directory: &PathBuf) {}
+
 fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
 

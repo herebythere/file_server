@@ -70,23 +70,11 @@ async fn compose_entry_details_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    let req_path = match get_url_path_from_request(req, &res_params.directory, false) {
+    let uri_path = match get_url_path_from_request(req, &res_params.directory, false) {
         Some(pth) => pth,
         _ => return None,
     };
 
-    let details = get_entry_details(&res_params.directory, &req_path).await;
-
-    match compose_response(details).await {
-        Some(res) => Some(res),
-        _ => Some(last_resort_response::build_response(
-            StatusCode::NOT_FOUND,
-            NOT_FOUND_404,
-        )),
-    }
-}
-
-async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
     let metadata = match fs::metadata(&uri_path).await {
         Ok(m) => m,
         _ => return None,
@@ -97,9 +85,17 @@ async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<En
         return None;
     }
 
-    match metadata.is_dir() {
-        true => build_directory_entry(&metadata, &uri_path, directory).await,
-        _ => build_file_entry(&metadata, &uri_path, directory),
+    let details = match metadata.is_dir() {
+        true => build_directory_entry(&metadata, &uri_path, &res_params.directory).await,
+        _ => build_file_entry(&metadata, &uri_path, &res_params.directory),
+    };
+
+    match compose_response(details).await {
+        Some(res) => Some(res),
+        _ => Some(last_resort_response::build_response(
+            StatusCode::NOT_FOUND,
+            NOT_FOUND_404,
+        )),
     }
 }
 
@@ -156,8 +152,11 @@ async fn build_directory_entry(
 fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBuf) -> FileDetails {
     let file_name = match req_path.file_name() {
         Some(flnm) => flnm.to_string_lossy().to_string(),
-        None => "".to_string(),
+        None => "[unable to parse filename]".to_string(),
     };
+
+    // strip path from base path
+    // make sure url_path starts with / and ends with / if a directory
 
     let created_at = get_duration_since_as_ms(metadata.created());
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
