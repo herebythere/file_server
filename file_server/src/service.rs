@@ -1,7 +1,7 @@
+use hyper::Request;
 use hyper::body::Incoming;
 use hyper::service::Service;
-use hyper::Request;
-use response::{compose_response, BoxedResponse, ResponseParams};
+use response::{BoxedResponse, ResponseParams, compose_response};
 use std::future::Future;
 use std::pin::Pin;
 

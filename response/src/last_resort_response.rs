@@ -1,11 +1,10 @@
-use bytes;
-use http_body_util::{BodyExt, Full};
-use hyper::header::{HeaderValue, CONTENT_TYPE};
-use hyper::http::Response;
-use hyper::StatusCode;
-
 use crate::content_type::HTML;
 use crate::utils_flyweight::BoxedResponse;
+use bytes;
+use http_body_util::{BodyExt, Full};
+use hyper::StatusCode;
+use hyper::header::{CONTENT_TYPE, HeaderValue};
+use hyper::http::Response;
 
 pub fn build_response(
     status_code: StatusCode,

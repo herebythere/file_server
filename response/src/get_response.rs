@@ -1,21 +1,20 @@
-use futures_util::TryStreamExt;
-use http_body_util::{BodyExt, StreamBody};
-use hyper::body::{Frame, Incoming};
-use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
-use hyper::http::{Request, Response};
-use hyper::StatusCode;
-use std::path::PathBuf;
-use tokio::fs;
-use tokio_util::io::ReaderStream;
-
 use crate::available_encodings::{add_extension, get_encodings};
 use crate::content_type::get_content_type;
 use crate::last_resort_response;
 use crate::range_response;
 use crate::serialize_details;
 use crate::utils_flyweight::{
-    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
+    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
 };
+use futures_util::TryStreamExt;
+use http_body_util::{BodyExt, StreamBody};
+use hyper::StatusCode;
+use hyper::body::{Frame, Incoming};
+use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
+use hyper::http::{Request, Response};
+use std::path::PathBuf;
+use tokio::fs;
+use tokio_util::io::ReaderStream;
 
 pub async fn build_response(
     req: Request<Incoming>,

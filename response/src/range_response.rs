@@ -1,3 +1,10 @@
+use crate::available_encodings::{add_extension, get_encodings};
+use crate::content_type::get_content_type;
+use crate::last_resort_response;
+use crate::utils_flyweight::{
+    BoxedResponse, NOT_FOUND_404, RANGE_NOT_SATISFIABLE_416, ResponseParams,
+    get_url_path_from_request,
+};
 use futures_util::TryStreamExt;
 use http_body_util::{BodyExt, StreamBody};
 use hyper::body::Frame;
@@ -10,14 +17,6 @@ use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncSeekExt;
 use tokio_util::io::ReaderStream;
-
-use crate::available_encodings::{add_extension, get_encodings};
-use crate::content_type::get_content_type;
-use crate::last_resort_response;
-use crate::utils_flyweight::{
-    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
-    RANGE_NOT_SATISFIABLE_416,
-};
 
 pub async fn build_response(
     req: &Request<IncomingBody>,
@@ -75,6 +74,8 @@ fn get_ranges(range_header_value: &str) -> Option<Vec<(Option<usize>, Option<usi
                 Ok(sri) => sri,
                 _ => return None,
             };
+
+            // add verified ranges here
 
             ranges.push((Some(start_range_int), None));
             continue;
@@ -203,7 +204,7 @@ async fn compose_single_range_response(
             return Some(last_resort_response::build_response(
                 StatusCode::RANGE_NOT_SATISFIABLE,
                 RANGE_NOT_SATISFIABLE_416,
-            ))
+            ));
         }
     };
 

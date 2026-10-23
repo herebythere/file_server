@@ -1,8 +1,12 @@
+use crate::last_resort_response;
+use crate::utils_flyweight::{
+    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
+};
 use http_body_util::{BodyExt, Full};
-use hyper::body::Incoming;
-use hyper::header::{HeaderValue, CONTENT_TYPE};
-use hyper::http::{Request, Response};
 use hyper::StatusCode;
+use hyper::body::Incoming;
+use hyper::header::{CONTENT_TYPE, HeaderValue};
+use hyper::http::{Request, Response};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
@@ -11,11 +15,6 @@ use std::io::Error as IoError;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tokio::fs;
-
-use crate::last_resort_response;
-use crate::utils_flyweight::{
-    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
-};
 
 // Need to jouge up for some clean json stuff, option should be property exists or no not NULL
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -41,6 +40,7 @@ pub async fn build_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
+    // Di this at start of request send down function chain
     let params = match req.uri().query() {
         Some(prms) => prms,
         _ => return None,
@@ -66,6 +66,23 @@ pub async fn build_response(
     compose_entry_details_response(req, res_params).await
 }
 
+pub async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
+    let metadata = match fs::metadata(&uri_path).await {
+        Ok(m) => m,
+        _ => return None,
+    };
+
+    // immediately drop symlink, feels dangerous
+    if metadata.is_symlink() {
+        return None;
+    }
+
+    match metadata.is_dir() {
+        true => build_directory_entry(&metadata, &uri_path, directory).await,
+        _ => build_file_entry(&metadata, &uri_path, directory),
+    }
+}
+
 async fn compose_entry_details_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
@@ -83,23 +100,6 @@ async fn compose_entry_details_response(
             StatusCode::NOT_FOUND,
             NOT_FOUND_404,
         )),
-    }
-}
-
-pub async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
-    let metadata = match fs::metadata(&uri_path).await {
-        Ok(m) => m,
-        _ => return None,
-    };
-
-    // immediately drop symlink, feels dangerous
-    if metadata.is_symlink() {
-        return None;
-    }
-
-    match metadata.is_dir() {
-        true => build_directory_entry(&metadata, &uri_path, directory).await,
-        _ => build_file_entry(&metadata, &uri_path, directory),
     }
 }
 

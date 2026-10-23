@@ -1,11 +1,10 @@
+use crate::available_encodings::AvailableEncodings;
 use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use hyper::body::Incoming;
 use hyper::http::{Request, Response};
 use std::path::{Component, PathBuf};
 use tokio::io;
-
-use crate::available_encodings::AvailableEncodings;
 
 pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
 
@@ -35,8 +34,8 @@ impl ResponseParams {
 pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Option<PathBuf> {
     let uri_path = req.uri().path();
     let url_path_as_os_path = convert_to_os_path(&uri_path);
-    let joined_path = directory.join(url_path_as_os_path);
 
+    let joined_path = directory.join(url_path_as_os_path);
     let normalized = match normalize_path_lexicographically(&joined_path) {
         Some(pth) => pth,
         _ => return None,
@@ -88,5 +87,5 @@ fn normalize_path_lexicographically(path_buf: &PathBuf) -> Option<PathBuf> {
         normalized.push(part);
     }
 
-    return Some(normalized);
+    Some(normalized)
 }
