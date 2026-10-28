@@ -109,9 +109,9 @@ The following json schema will be retured:
 
 ```json
 {
-	"details": "<details json>",
+	"details": "<details>",
 	"entries": [
-		"<details json>",
+		"<details>",
 		"..."
 	]
 }
