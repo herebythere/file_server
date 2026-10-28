@@ -1,3 +1,10 @@
+use crate::available_encodings::{add_extension, get_encodings};
+use crate::content_type::get_content_type;
+use crate::last_resort_response;
+use crate::utils_flyweight::{
+    BoxedResponse, NOT_FOUND_404, RANGE_NOT_SATISFIABLE_416, ResponseParams,
+    get_url_path_from_request,
+};
 use futures_util::TryStreamExt;
 use http_body_util::{BodyExt, StreamBody};
 use hyper::body::Frame;
@@ -5,19 +12,11 @@ use hyper::body::Incoming as IncomingBody;
 use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE};
 use hyper::http::{Request, Response, StatusCode};
 use std::io::SeekFrom;
-use std::path::PathBuf;
+use std::path::Path;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncSeekExt;
 use tokio_util::io::ReaderStream;
-
-use crate::content_type::get_content_type;
-use crate::last_resort_response;
-use crate::response_paths::{add_extension, get_encodings};
-use crate::utils_flyweight::{
-    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
-    RANGE_NOT_SATISFIABLE_416,
-};
 
 pub async fn build_response(
     req: &Request<IncomingBody>,
@@ -29,7 +28,7 @@ pub async fn build_response(
     };
 
     // flatten this
-    if let Some(filepath) = get_url_path_from_request(req, &res_params.directory) {
+    if let Some(filepath) = get_url_path_from_request(req, &res_params.directory, true) {
         if let Some(ranges) = get_ranges(&range_header) {
             let encodings = get_encodings(req, &res_params.available_encodings);
 
@@ -75,6 +74,8 @@ fn get_ranges(range_header_value: &str) -> Option<Vec<(Option<usize>, Option<usi
                 Ok(sri) => sri,
                 _ => return None,
             };
+
+            // add verified ranges here
 
             ranges.push((Some(start_range_int), None));
             continue;
@@ -138,7 +139,7 @@ fn get_window_range(range_chunk: &str) -> Option<(Option<usize>, Option<usize>)>
 }
 
 async fn build_single_range_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     encodings: &Vec<String>,
     ranges: Vec<(Option<usize>, Option<usize>)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
@@ -155,7 +156,7 @@ async fn build_single_range_response(
 }
 
 async fn compose_encoded_single_range_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     content_type: &str,
     encodings: &Vec<String>,
     ranges: &Vec<(Option<usize>, Option<usize>)>,
@@ -177,7 +178,7 @@ async fn compose_encoded_single_range_response(
 }
 
 async fn compose_single_range_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     content_type: &str,
     content_encoding: Option<&str>,
     ranges: &Vec<(Option<usize>, Option<usize>)>,
@@ -203,7 +204,7 @@ async fn compose_single_range_response(
             return Some(last_resort_response::build_response(
                 StatusCode::RANGE_NOT_SATISFIABLE,
                 RANGE_NOT_SATISFIABLE_416,
-            ))
+            ));
         }
     };
 

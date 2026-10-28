@@ -1,27 +1,27 @@
-use futures_util::TryStreamExt;
-use http_body_util::{BodyExt, StreamBody};
-use hyper::body::{Frame, Incoming};
-use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
-use hyper::http::{Request, Response};
-use hyper::StatusCode;
-use std::path::PathBuf;
-use tokio::fs;
-use tokio_util::io::ReaderStream;
-
+use crate::available_encodings::{add_extension, get_encodings};
 use crate::content_type::get_content_type;
 use crate::last_resort_response;
 use crate::range_response;
-use crate::response_paths::{add_extension, get_encodings};
 use crate::serialize_details;
 use crate::utils_flyweight::{
-    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
+    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
 };
+use futures_util::TryStreamExt;
+use http_body_util::{BodyExt, StreamBody};
+use hyper::StatusCode;
+use hyper::body::{Frame, Incoming};
+use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
+use hyper::http::{Request, Response};
+use std::path::Path;
+use tokio::fs;
+use tokio_util::io::ReaderStream;
 
 pub async fn build_response(
     req: Request<Incoming>,
     res_params: ResponseParams,
 ) -> Result<BoxedResponse, hyper::http::Error> {
     // check for a json details request
+    // should be on file
     if let Some(res) = serialize_details::build_response(&req, &res_params).await {
         return res;
     };
@@ -41,29 +41,17 @@ pub async fn build_response(
 
 async fn build_req_path_response(
     req: &Request<Incoming>,
-    directory: &PathBuf,
+    directory: &Path,
     encodings: &Vec<String>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    let filepath = match get_url_path_from_request(req, directory) {
+    let filepath = match get_url_path_from_request(req, directory, true) {
         Some(fp) => fp,
         _ => return None,
     };
 
     let content_type = get_content_type(&filepath);
-    if let Some(res) = compose_encoded_response(&filepath, content_type, &encodings).await {
-        return Some(res);
-    };
-
-    compose_response(&filepath, content_type, None).await
-}
-
-async fn compose_encoded_response(
-    filepath: &PathBuf,
-    content_type: &str,
-    encodings: &Vec<String>,
-) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     for enc in encodings {
-        let encoded_path = match add_extension(filepath, enc) {
+        let encoded_path = match add_extension(&filepath, enc) {
             Some(enc_pth) => enc_pth,
             _ => continue,
         };
@@ -73,11 +61,11 @@ async fn compose_encoded_response(
         }
     }
 
-    None
+    compose_response(&filepath, content_type, None).await
 }
 
 async fn compose_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     content_type: &str,
     content_encoding: Option<&str>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {

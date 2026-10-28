@@ -1,11 +1,10 @@
+use crate::available_encodings::AvailableEncodings;
 use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use hyper::body::Incoming;
 use hyper::http::{Request, Response};
-use std::path::{Component, PathBuf};
+use std::path::{Component, MAIN_SEPARATOR, Path, PathBuf};
 use tokio::io;
-
-use crate::available_encodings::AvailableEncodings;
 
 pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
 
@@ -20,11 +19,11 @@ pub struct ResponseParams {
 }
 
 impl ResponseParams {
-    pub fn from(directory: &PathBuf, content_encodings: &Vec<String>) -> ResponseParams {
+    pub fn from(directory: &Path, content_encodings: &Vec<String>) -> ResponseParams {
         let available_encodings = AvailableEncodings::from(content_encodings);
 
         ResponseParams {
-            directory: directory.clone(),
+            directory: directory.to_path_buf(),
             available_encodings,
         }
     }
@@ -32,11 +31,15 @@ impl ResponseParams {
 
 // https://doc.rust-lang.org/std/path/struct.Path.html#method.normalize_lexically
 // normalize lexically in nightly
-pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -> Option<PathBuf> {
+pub fn get_url_path_from_request(
+    req: &Request<Incoming>,
+    directory: &Path,
+    add_index_on_directory: bool,
+) -> Option<PathBuf> {
     let uri_path = req.uri().path();
-    let url_path_as_os_path = convert_to_os_path(&uri_path);
-    let joined_path = directory.join(url_path_as_os_path);
+    let url_path_as_os_path = convert_to_os_path(&uri_path, add_index_on_directory);
 
+    let joined_path = directory.join(url_path_as_os_path);
     let normalized = match normalize_path_lexicographically(&joined_path) {
         Some(pth) => pth,
         _ => return None,
@@ -48,7 +51,7 @@ pub fn get_url_path_from_request(req: &Request<Incoming>, directory: &PathBuf) -
     }
 }
 
-fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
+fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
 
     let splitted = path_buf_str.split("/");
@@ -61,7 +64,7 @@ fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
         }
     }
 
-    if path_buf_str.ends_with("/") {
+    if add_index_on_directory && path_buf_str.ends_with(MAIN_SEPARATOR) {
         normalized_uri_path.push("index.html");
     }
 
@@ -69,7 +72,7 @@ fn convert_to_os_path(path_buf_str: &str) -> PathBuf {
 }
 
 // return with a path or an error
-fn normalize_path_lexicographically(path_buf: &PathBuf) -> Option<PathBuf> {
+fn normalize_path_lexicographically(path_buf: &Path) -> Option<PathBuf> {
     let mut normalized_stack: Vec<Component> = Vec::new();
     for part in path_buf.components() {
         match part {
@@ -88,5 +91,5 @@ fn normalize_path_lexicographically(path_buf: &PathBuf) -> Option<PathBuf> {
         normalized.push(part);
     }
 
-    return Some(normalized);
+    Some(normalized)
 }

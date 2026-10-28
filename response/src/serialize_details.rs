@@ -1,29 +1,30 @@
+use crate::last_resort_response;
+use crate::utils_flyweight::{
+    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
+};
 use http_body_util::{BodyExt, Full};
-use hyper::body::Incoming;
-use hyper::header::{HeaderValue, CONTENT_TYPE};
-use hyper::http::{Request, Response};
 use hyper::StatusCode;
+use hyper::body::Incoming;
+use hyper::header::{CONTENT_TYPE, HeaderValue};
+use hyper::http::{Request, Response};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::Error as IoError;
+use std::path::Component;
 use std::path::Path;
-use std::path::PathBuf;
 use std::time::SystemTime;
 use tokio::fs;
-
-use crate::last_resort_response;
-use crate::utils_flyweight::{
-    get_url_path_from_request, BoxedResponse, ResponseParams, NOT_FOUND_404,
-};
 
 // Need to jouge up for some clean json stuff, option should be property exists or no not NULL
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FileDetails {
+    is_file: bool,
     is_dir: bool,
+    is_symlink: bool,
     file_name: String,
-    url_path: PathBuf,
+    url_path: String,
     size: u64,
     created_at: Option<u128>,
     accessed_at: Option<u128>,
@@ -40,6 +41,7 @@ pub async fn build_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
+    // Di this at start of request send down function chain
     let params = match req.uri().query() {
         Some(prms) => prms,
         _ => return None,
@@ -69,23 +71,11 @@ async fn compose_entry_details_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    let req_path = match get_url_path_from_request(req, &res_params.directory) {
+    let uri_path = match get_url_path_from_request(req, &res_params.directory, false) {
         Some(pth) => pth,
         _ => return None,
     };
 
-    let details = get_entry_details(&res_params.directory, &req_path).await;
-
-    match compose_response(details).await {
-        Some(res) => Some(res),
-        _ => Some(last_resort_response::build_response(
-            StatusCode::NOT_FOUND,
-            NOT_FOUND_404,
-        )),
-    }
-}
-
-pub async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Option<EntryDetails> {
     let metadata = match fs::metadata(&uri_path).await {
         Ok(m) => m,
         _ => return None,
@@ -96,16 +86,24 @@ pub async fn get_entry_details(directory: &PathBuf, uri_path: &PathBuf) -> Optio
         return None;
     }
 
-    match metadata.is_dir() {
-        true => build_directory_entry(&metadata, &uri_path, directory).await,
-        _ => build_file_entry(&metadata, &uri_path, directory),
+    let details = match metadata.is_dir() {
+        true => build_directory_entry(&metadata, &uri_path, &res_params.directory).await,
+        _ => build_file_entry(&metadata, &uri_path, &res_params.directory),
+    };
+
+    match compose_response(details).await {
+        Some(res) => Some(res),
+        _ => Some(last_resort_response::build_response(
+            StatusCode::NOT_FOUND,
+            NOT_FOUND_404,
+        )),
     }
 }
 
 fn build_file_entry(
     metadata: &Metadata,
-    req_path: &PathBuf,
-    base_path: &PathBuf,
+    req_path: &Path,
+    base_path: &Path,
 ) -> Option<EntryDetails> {
     let details = create_entry_details(metadata, req_path, base_path);
 
@@ -117,8 +115,8 @@ fn build_file_entry(
 
 async fn build_directory_entry(
     metadata: &Metadata,
-    req_path: &PathBuf,
-    base_path: &PathBuf,
+    req_path: &Path,
+    base_path: &Path,
 ) -> Option<EntryDetails> {
     let details = create_entry_details(metadata, req_path, base_path);
 
@@ -152,23 +150,28 @@ async fn build_directory_entry(
     Some(entry_details)
 }
 
-fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBuf) -> FileDetails {
+fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &Path) -> FileDetails {
     let file_name = match req_path.file_name() {
         Some(flnm) => flnm.to_string_lossy().to_string(),
-        None => "".to_string(),
+        None => "[unable to parse filename]".to_string(),
+    };
+
+    // strip path from base path
+    // make sure url_path starts with / and ends with / if a directory
+
+    let url_path = match get_url_path_from_filepath(metadata, base_path, req_path) {
+        Some(p) => p,
+        _ => "".to_string(),
     };
 
     let created_at = get_duration_since_as_ms(metadata.created());
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
 
-    let url_path: PathBuf = match req_path.strip_prefix(base_path) {
-        Ok(fp) => fp.to_path_buf(),
-        Err(_) => PathBuf::from(""),
-    };
-
     FileDetails {
         is_dir: metadata.is_dir(),
+        is_file: metadata.is_file(),
+        is_symlink: metadata.is_symlink(),
         file_name,
         url_path,
         created_at,
@@ -211,4 +214,37 @@ fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Op
     }
 
     None
+}
+
+// get url path from path(directory, pathbuf)
+pub fn get_url_path_from_filepath(
+    metadata: &Metadata,
+    directory: &Path,
+    path_buf: &Path,
+) -> Option<String> {
+    let suffix = match path_buf.strip_prefix(directory) {
+        Ok(sfx) => sfx,
+        _ => return None,
+    };
+
+    let mut url_path: String = "".to_string();
+    for component in suffix.components() {
+        match component {
+            Component::Normal(os) => {
+                url_path.push_str("/");
+                let os_str = match os.to_str() {
+                    Some(st) => st,
+                    _ => return None,
+                };
+                url_path.push_str(os_str);
+            }
+            _ => {}
+        }
+    }
+
+    if metadata.is_dir() {
+        url_path.push_str("/");
+    }
+
+    Some(url_path)
 }

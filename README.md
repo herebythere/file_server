@@ -1,4 +1,4 @@
-# file_server
+# File server
 
 An `http` file server written in rust using [tokio](https://tokio.rs/) and
 [hyper](https://hyper.rs/).
@@ -95,6 +95,68 @@ Valid range sytanxes:
 <unit>=<range-start>-
 <unit>=<range-start>-<range-end>
 <unit>=-<suffix-length>
+```
+
+### Serialize details
+
+Details for a particular file or directory can be requested with some url params:
+
+```
+http://127.0.0.1:3000/?serialize_as=json
+```
+
+The following json schema will be retured:
+
+```json
+{
+	"details": "<details>",
+	"entries": [
+		"<details>",
+		"..."
+	]
+}
+```
+
+Which could produce a json object similar to the following:
+
+```json
+{
+	"details": {
+		"is_file": false,
+		"is_dir": true,
+		"is_symlink": false,
+		"file_name": "demo",
+		"url_path": "/demo",
+		"size": 128,
+		"created_at": 1788035132686,
+		"accessed_at": 1792381141727,
+		"modified_at": 1792381141619
+	},
+	"entries": [
+		{
+			"is_file": true,
+			"is_dir": false,
+			"is_symlink": false,
+			"file_name": "index.html.zst",
+			"url_path": "/demo/index.html.zst",
+			"size": 304,
+			"created_at": 1788035132686,
+			"accessed_at": 1788035156555,
+			"modified_at": 1788035132686
+		},
+		{
+			"is_file": true,
+			"is_dir": false,
+			"is_symlink": false,
+			"file_name": "index.html",
+			"url_path": "/demo/index.html",
+			"size": 460,
+			"created_at": 1788035132686,
+			"accessed_at": 1788035156555,
+			"modified_at": 1788035132686
+		}
+	]
+}
 ```
 
 ## License
