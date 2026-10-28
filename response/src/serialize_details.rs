@@ -159,7 +159,7 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &Path) 
     // strip path from base path
     // make sure url_path starts with / and ends with / if a directory
 
-    let url_path = match get_url_path_from_filepath(base_path, req_path) {
+    let url_path = match get_url_path_from_filepath(metadata, base_path, req_path) {
         Some(p) => p,
         _ => "".to_string(),
     };
@@ -217,7 +217,11 @@ fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Op
 }
 
 // get url path from path(directory, pathbuf)
-pub fn get_url_path_from_filepath(directory: &Path, path_buf: &Path) -> Option<String> {
+pub fn get_url_path_from_filepath(
+    metadata: &Metadata,
+    directory: &Path,
+    path_buf: &Path,
+) -> Option<String> {
     let suffix = match path_buf.strip_prefix(directory) {
         Ok(sfx) => sfx,
         _ => return None,
@@ -238,7 +242,7 @@ pub fn get_url_path_from_filepath(directory: &Path, path_buf: &Path) -> Option<S
         }
     }
 
-    if path_buf.ends_with("/") {
+    if metadata.is_dir() {
         url_path.push_str("/");
     }
 
