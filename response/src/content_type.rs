@@ -1,10 +1,10 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 pub const HTML: &str = "text/html; charset=utf-8";
 pub const TEXT: &str = "text/plain; charset=utf-8";
 const OCTET: &str = "application/octet-stream";
 
-pub fn get_content_type(target_path: &PathBuf) -> &str {
+pub fn get_content_type(target_path: &Path) -> &str {
     let extension = match target_path.extension() {
         Some(ext) => ext,
         _ => return OCTET,

@@ -19,11 +19,11 @@ pub struct ResponseParams {
 }
 
 impl ResponseParams {
-    pub fn from(directory: &PathBuf, content_encodings: &Vec<String>) -> ResponseParams {
+    pub fn from(directory: &Path, content_encodings: &Vec<String>) -> ResponseParams {
         let available_encodings = AvailableEncodings::from(content_encodings);
 
         ResponseParams {
-            directory: directory.clone(),
+            directory: directory.to_path_buf(),
             available_encodings,
         }
     }
@@ -33,7 +33,7 @@ impl ResponseParams {
 // normalize lexically in nightly
 pub fn get_url_path_from_request(
     req: &Request<Incoming>,
-    directory: &PathBuf,
+    directory: &Path,
     add_index_on_directory: bool,
 ) -> Option<PathBuf> {
     let uri_path = req.uri().path();
@@ -71,37 +71,8 @@ fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathB
     normalized_uri_path
 }
 
-// get url path from path(directory, pathbuf)
-pub fn get_url_path_from_filepath(directory: &PathBuf, path_buf: &Path) -> Option<String> {
-    let suffix = match path_buf.strip_prefix(directory) {
-        Ok(sfx) => sfx,
-        _ => return None,
-    };
-
-    let mut url_path: String = "".to_string();
-    for component in suffix.components() {
-        match component {
-            Component::Normal(os) => {
-                url_path.push_str("/");
-                let os_str = match os.to_str() {
-                    Some(st) => st,
-                    _ => return None,
-                };
-                url_path.push_str(os_str);
-            }
-            _ => {}
-        }
-    }
-
-    if path_buf.ends_with("/") {
-        url_path.push_str("/");
-    }
-
-    Some(url_path)
-}
-
 // return with a path or an error
-fn normalize_path_lexicographically(path_buf: &PathBuf) -> Option<PathBuf> {
+fn normalize_path_lexicographically(path_buf: &Path) -> Option<PathBuf> {
     let mut normalized_stack: Vec<Component> = Vec::new();
     for part in path_buf.components() {
         match part {

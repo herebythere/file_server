@@ -12,7 +12,7 @@ use hyper::body::Incoming as IncomingBody;
 use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE};
 use hyper::http::{Request, Response, StatusCode};
 use std::io::SeekFrom;
-use std::path::PathBuf;
+use std::path::Path;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncSeekExt;
@@ -139,7 +139,7 @@ fn get_window_range(range_chunk: &str) -> Option<(Option<usize>, Option<usize>)>
 }
 
 async fn build_single_range_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     encodings: &Vec<String>,
     ranges: Vec<(Option<usize>, Option<usize>)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
@@ -156,7 +156,7 @@ async fn build_single_range_response(
 }
 
 async fn compose_encoded_single_range_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     content_type: &str,
     encodings: &Vec<String>,
     ranges: &Vec<(Option<usize>, Option<usize>)>,
@@ -178,7 +178,7 @@ async fn compose_encoded_single_range_response(
 }
 
 async fn compose_single_range_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     content_type: &str,
     content_encoding: Option<&str>,
     ranges: &Vec<(Option<usize>, Option<usize>)>,

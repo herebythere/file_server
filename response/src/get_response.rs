@@ -12,7 +12,7 @@ use hyper::StatusCode;
 use hyper::body::{Frame, Incoming};
 use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::http::{Request, Response};
-use std::path::PathBuf;
+use std::path::Path;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
 
@@ -41,7 +41,7 @@ pub async fn build_response(
 
 async fn build_req_path_response(
     req: &Request<Incoming>,
-    directory: &PathBuf,
+    directory: &Path,
     encodings: &Vec<String>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     let filepath = match get_url_path_from_request(req, directory, true) {
@@ -65,7 +65,7 @@ async fn build_req_path_response(
 }
 
 async fn compose_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     content_type: &str,
     content_encoding: Option<&str>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {

@@ -1,7 +1,7 @@
 use hyper::body::Incoming;
 use hyper::header::ACCEPT_ENCODING;
 use hyper::http::Request;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct AvailableEncodings {
@@ -80,13 +80,13 @@ pub fn get_encodings(
     return encodings;
 }
 
-pub fn add_extension(filepath: &PathBuf, encoding: &str) -> Option<PathBuf> {
+pub fn add_extension(filepath: &Path, encoding: &str) -> Option<PathBuf> {
     let enc_ext = match get_encoded_ext(encoding) {
         Some(enc) => enc,
         _ => return None,
     };
 
-    let mut ext_path = filepath.clone();
+    let mut ext_path = filepath.to_path_buf();
     ext_path.add_extension(enc_ext);
 
     Some(ext_path)

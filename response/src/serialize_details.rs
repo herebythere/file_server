@@ -1,7 +1,6 @@
 use crate::last_resort_response;
 use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_filepath,
-    get_url_path_from_request,
+    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
 };
 use http_body_util::{BodyExt, Full};
 use hyper::StatusCode;
@@ -13,7 +12,8 @@ use serde_json;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::Error as IoError;
-use std::path::{Path, PathBuf};
+use std::path::Component;
+use std::path::Path;
 use std::time::SystemTime;
 use tokio::fs;
 
@@ -102,8 +102,8 @@ async fn compose_entry_details_response(
 
 fn build_file_entry(
     metadata: &Metadata,
-    req_path: &PathBuf,
-    base_path: &PathBuf,
+    req_path: &Path,
+    base_path: &Path,
 ) -> Option<EntryDetails> {
     let details = create_entry_details(metadata, req_path, base_path);
 
@@ -115,8 +115,8 @@ fn build_file_entry(
 
 async fn build_directory_entry(
     metadata: &Metadata,
-    req_path: &PathBuf,
-    base_path: &PathBuf,
+    req_path: &Path,
+    base_path: &Path,
 ) -> Option<EntryDetails> {
     let details = create_entry_details(metadata, req_path, base_path);
 
@@ -150,7 +150,7 @@ async fn build_directory_entry(
     Some(entry_details)
 }
 
-fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBuf) -> FileDetails {
+fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &Path) -> FileDetails {
     let file_name = match req_path.file_name() {
         Some(flnm) => flnm.to_string_lossy().to_string(),
         None => "[unable to parse filename]".to_string(),
@@ -214,4 +214,33 @@ fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Op
     }
 
     None
+}
+
+// get url path from path(directory, pathbuf)
+pub fn get_url_path_from_filepath(directory: &Path, path_buf: &Path) -> Option<String> {
+    let suffix = match path_buf.strip_prefix(directory) {
+        Ok(sfx) => sfx,
+        _ => return None,
+    };
+
+    let mut url_path: String = "".to_string();
+    for component in suffix.components() {
+        match component {
+            Component::Normal(os) => {
+                url_path.push_str("/");
+                let os_str = match os.to_str() {
+                    Some(st) => st,
+                    _ => return None,
+                };
+                url_path.push_str(os_str);
+            }
+            _ => {}
+        }
+    }
+
+    if path_buf.ends_with("/") {
+        url_path.push_str("/");
+    }
+
+    Some(url_path)
 }

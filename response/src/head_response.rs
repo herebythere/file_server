@@ -9,7 +9,7 @@ use hyper::StatusCode;
 use hyper::body::Incoming;
 use hyper::header::{ACCEPT_RANGES, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::http::{Request, Response};
-use std::path::PathBuf;
+use std::path::Path;
 use tokio::fs;
 
 pub async fn build_response(
@@ -43,7 +43,7 @@ pub async fn build_response(
 }
 
 async fn compose_response(
-    filepath: &PathBuf,
+    filepath: &Path,
     content_type: &str,
     content_encoding: Option<&str>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
