@@ -1,6 +1,7 @@
 use crate::last_resort_response;
 use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
+    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_filepath,
+    get_url_path_from_request,
 };
 use http_body_util::{BodyExt, Full};
 use hyper::StatusCode;
@@ -158,6 +159,11 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBu
     // strip path from base path
     // make sure url_path starts with / and ends with / if a directory
 
+    let url_path = match get_url_path_from_filepath(base_path, req_path) {
+        Some(p) => p,
+        _ => "".to_string(),
+    };
+
     let created_at = get_duration_since_as_ms(metadata.created());
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
@@ -167,7 +173,7 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &PathBu
         is_file: metadata.is_file(),
         is_symlink: metadata.is_symlink(),
         file_name,
-        url_path: "".to_string(),
+        url_path,
         created_at,
         accessed_at,
         modified_at,

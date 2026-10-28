@@ -3,7 +3,7 @@ use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use hyper::body::Incoming;
 use hyper::http::{Request, Response};
-use std::path::{Component, MAIN_SEPARATOR, PathBuf};
+use std::path::{Component, MAIN_SEPARATOR, Path, PathBuf};
 use tokio::io;
 
 pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
@@ -51,8 +51,6 @@ pub fn get_url_path_from_request(
     }
 }
 
-pub fn get_url_path_from_pathbuf(directory: &PathBuf) {}
-
 fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
 
@@ -74,6 +72,33 @@ fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathB
 }
 
 // get url path from path(directory, pathbuf)
+pub fn get_url_path_from_filepath(directory: &PathBuf, path_buf: &Path) -> Option<String> {
+    let suffix = match path_buf.strip_prefix(directory) {
+        Ok(sfx) => sfx,
+        _ => return None,
+    };
+
+    let mut url_path: String = "".to_string();
+    for component in suffix.components() {
+        match component {
+            Component::Normal(os) => {
+                url_path.push_str("/");
+                let os_str = match os.to_str() {
+                    Some(st) => st,
+                    _ => return None,
+                };
+                url_path.push_str(os_str);
+            }
+            _ => {}
+        }
+    }
+
+    if path_buf.ends_with("/") {
+        url_path.push_str("/");
+    }
+
+    Some(url_path)
+}
 
 // return with a path or an error
 fn normalize_path_lexicographically(path_buf: &PathBuf) -> Option<PathBuf> {
