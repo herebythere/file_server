@@ -41,7 +41,25 @@ pub async fn build_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    // Di this at start of request send down function chain
+    let params_map = match get_uri_query_map(req) {
+        Some(pm) => pm,
+        _ => return None,
+    };
+
+    let details_as = match params_map.get("details_as") {
+        Some(srlz) => srlz,
+        _ => return None,
+    };
+
+    // details is only available in json for now
+    if "json" != details_as {
+        return None;
+    }
+
+    compose_entry_details_response(req, res_params).await
+}
+
+fn get_uri_query_map(req: &Request<Incoming>) -> Option<HashMap<String, String>> {
     let params = match req.uri().query() {
         Some(prms) => prms,
         _ => return None,
@@ -51,20 +69,11 @@ pub async fn build_response(
         return None;
     }
 
-    let params_map = form_urlencoded::parse(params.as_bytes())
-        .into_owned()
-        .collect::<HashMap<String, String>>();
-
-    let serialize_as = match params_map.get("details_as") {
-        Some(srlz) => srlz,
-        _ => return None,
-    };
-
-    if "json" != serialize_as {
-        return None;
-    }
-
-    compose_entry_details_response(req, res_params).await
+    Some(
+        form_urlencoded::parse(params.as_bytes())
+            .into_owned()
+            .collect::<HashMap<String, String>>(),
+    )
 }
 
 async fn compose_entry_details_response(

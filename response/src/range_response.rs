@@ -28,16 +28,15 @@ pub async fn build_response(
     };
 
     // flatten this
-    if let Some(filepath) = get_url_path_from_request(req, &res_params.directory, true) {
-        if let Some(ranges) = get_ranges(&range_header) {
+    if let Some(ranges) = get_ranges(&range_header) {
+        if let Some(filepath) = get_url_path_from_request(req, &res_params.directory, true) {
             let encodings = get_encodings(req, &res_params.available_encodings);
-
             if let Some(response) = build_single_range_response(&filepath, &encodings, ranges).await
             {
                 return Some(response);
             }
-        };
-    }
+        }
+    };
 
     Some(last_resort_response::build_response(
         StatusCode::NOT_FOUND,

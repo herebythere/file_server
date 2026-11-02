@@ -37,13 +37,9 @@ pub fn get_url_path_from_request(
     add_index_on_directory: bool,
 ) -> Option<PathBuf> {
     let uri_path = req.uri().path();
-    let url_path_as_os_path = convert_to_os_path(&uri_path, add_index_on_directory);
-
+    let url_path_as_os_path = convert_url_path_to_os_path(&uri_path, add_index_on_directory);
     let joined_path = directory.join(url_path_as_os_path);
-    let normalized = match normalize_path_lexicographically(&joined_path) {
-        Some(pth) => pth,
-        _ => return None,
-    };
+    let normalized = normalize_path_lexicographically(&joined_path);
 
     match normalized.starts_with(directory) {
         true => Some(normalized),
@@ -51,11 +47,9 @@ pub fn get_url_path_from_request(
     }
 }
 
-fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
+fn convert_url_path_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
-
-    let splitted = path_buf_str.split("/");
-    for split in splitted {
+    for split in path_buf_str.split("/") {
         match split {
             "" => {}
             "." => normalized_uri_path.push(Component::CurDir),
@@ -72,16 +66,14 @@ fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathB
 }
 
 // return with a path or an error
-fn normalize_path_lexicographically(path_buf: &Path) -> Option<PathBuf> {
+fn normalize_path_lexicographically(path_buf: &Path) -> PathBuf {
     let mut normalized_stack: Vec<Component> = Vec::new();
     for part in path_buf.components() {
         match part {
-            Component::ParentDir => {
-                if let None = normalized_stack.pop() {
-                    return None;
-                }
-            }
             Component::CurDir => {}
+            Component::ParentDir => {
+                normalized_stack.pop();
+            }
             _ => normalized_stack.push(part),
         }
     }
@@ -91,5 +83,5 @@ fn normalize_path_lexicographically(path_buf: &Path) -> Option<PathBuf> {
         normalized.push(part);
     }
 
-    Some(normalized)
+    normalized
 }
