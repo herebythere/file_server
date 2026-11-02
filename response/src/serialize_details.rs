@@ -25,7 +25,7 @@ pub struct FileDetails {
     is_symlink: bool,
     file_name: String,
     url_path: String,
-    size: u64,
+    size: String,
     created_at: Option<String>,
     accessed_at: Option<String>,
     modified_at: Option<String>,
@@ -191,7 +191,7 @@ fn create_entry_details(
         created_at,
         accessed_at,
         modified_at,
-        size: metadata.len(),
+        size: metadata.len().to_string(),
     })
 }
 
