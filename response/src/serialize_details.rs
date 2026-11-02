@@ -26,9 +26,9 @@ pub struct FileDetails {
     file_name: String,
     url_path: String,
     size: u64,
-    created_at: Option<u128>,
-    accessed_at: Option<u128>,
-    modified_at: Option<u128>,
+    created_at: Option<String>,
+    accessed_at: Option<String>,
+    modified_at: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -220,10 +220,10 @@ fn compose_response(
     )
 }
 
-fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Option<u128> {
+fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Option<String> {
     if let Ok(timestamp) = timestamp_result {
         if let Ok(duration) = timestamp.duration_since(SystemTime::UNIX_EPOCH) {
-            return Some(duration.as_millis());
+            return Some(duration.as_millis().to_string());
         }
     }
 
