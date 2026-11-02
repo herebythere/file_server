@@ -51,12 +51,17 @@ pub async fn build_response(
         _ => return None,
     };
 
-    // details is only available in json for now
-    if "json" != details_as {
-        return None;
+    // After this point, this is a serialize details as
+    if "json" == details_as {
+        if let Some(res) = compose_entry_details_response(req, res_params).await {
+            return Some(res);
+        }
     }
 
-    compose_entry_details_response(req, res_params).await
+    Some(last_resort_response::build_response(
+        StatusCode::NOT_FOUND,
+        NOT_FOUND_404,
+    ))
 }
 
 fn get_uri_query_map(req: &Request<Incoming>) -> Option<HashMap<String, String>> {
@@ -90,7 +95,7 @@ async fn compose_entry_details_response(
         _ => return None,
     };
 
-    // immediately drop symlink, feels dangerous
+    // Drop symlink, feels dangerous
     if metadata.is_symlink() {
         return None;
     }
@@ -109,17 +114,19 @@ async fn compose_entry_details_response(
     }
 }
 
+// This should be optional >>>????
 fn build_file_entry(
     metadata: &Metadata,
     req_path: &Path,
     base_path: &Path,
 ) -> Option<EntryDetails> {
-    let details = create_entry_details(metadata, req_path, base_path);
-
-    Some(EntryDetails {
-        details,
-        entries: Vec::new(),
-    })
+    match create_entry_details(metadata, req_path, base_path) {
+        Some(details) => Some(EntryDetails {
+            details,
+            entries: Vec::new(),
+        }),
+        _ => None,
+    }
 }
 
 async fn build_directory_entry(
@@ -127,7 +134,10 @@ async fn build_directory_entry(
     req_path: &Path,
     base_path: &Path,
 ) -> Option<EntryDetails> {
-    let details = create_entry_details(metadata, req_path, base_path);
+    let details = match create_entry_details(metadata, req_path, base_path) {
+        Some(deets) => deets,
+        _ => return None,
+    };
 
     let mut entry_details = EntryDetails {
         details,
@@ -146,9 +156,9 @@ async fn build_directory_entry(
                 _ => continue,
             };
 
-            entry_details
-                .entries
-                .push(create_entry_details(&metadata, &entry.path(), base_path));
+            if let Some(details) = create_entry_details(&metadata, &entry.path(), base_path) {
+                entry_details.entries.push(details);
+            }
 
             continue;
         }
@@ -159,25 +169,26 @@ async fn build_directory_entry(
     Some(entry_details)
 }
 
-fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &Path) -> FileDetails {
+fn create_entry_details(
+    metadata: &Metadata,
+    req_path: &Path,
+    base_path: &Path,
+) -> Option<FileDetails> {
     let file_name = match req_path.file_name() {
         Some(flnm) => flnm.to_string_lossy().to_string(),
         None => "[unable to parse filename]".to_string(),
     };
 
-    // strip path from base path
-    // make sure url_path starts with / and ends with / if a directory
-
     let url_path = match get_url_path_from_filepath(metadata, base_path, req_path) {
         Some(p) => p,
-        _ => "".to_string(),
+        _ => return None,
     };
 
     let created_at = get_duration_since_as_ms(metadata.created());
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
 
-    FileDetails {
+    Some(FileDetails {
         is_dir: metadata.is_dir(),
         is_file: metadata.is_file(),
         is_symlink: metadata.is_symlink(),
@@ -187,7 +198,7 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &Path) 
         accessed_at,
         modified_at,
         size: metadata.len(),
-    }
+    })
 }
 
 async fn compose_response(
@@ -225,7 +236,6 @@ fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Op
     None
 }
 
-// get url path from path(directory, pathbuf)
 pub fn get_url_path_from_filepath(
     metadata: &Metadata,
     directory: &Path,

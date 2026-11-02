@@ -65,7 +65,6 @@ fn convert_url_path_to_os_path(path_buf_str: &str, add_index_on_directory: bool)
     normalized_uri_path
 }
 
-// return with a path or an error
 fn normalize_path_lexicographically(path_buf: &Path) -> PathBuf {
     let mut normalized_stack: Vec<Component> = Vec::new();
     for part in path_buf.components() {
