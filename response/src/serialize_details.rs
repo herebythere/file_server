@@ -105,13 +105,7 @@ async fn compose_entry_details_response(
         _ => build_file_entry(&metadata, &uri_path, &res_params.directory),
     };
 
-    match compose_response(details).await {
-        Some(res) => Some(res),
-        _ => Some(last_resort_response::build_response(
-            StatusCode::NOT_FOUND,
-            NOT_FOUND_404,
-        )),
-    }
+    compose_response(details)
 }
 
 // This should be optional >>>????
@@ -201,7 +195,7 @@ fn create_entry_details(
     })
 }
 
-async fn compose_response(
+fn compose_response(
     details_opt: Option<EntryDetails>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     let details = match details_opt {
