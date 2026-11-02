@@ -17,9 +17,8 @@ use std::path::Path;
 use std::time::SystemTime;
 use tokio::fs;
 
-// Need to jouge up for some clean json stuff, option should be property exists or no not NULL
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct FileDetails {
+pub struct FileDetailsJson {
     is_file: bool,
     is_dir: bool,
     is_symlink: bool,
@@ -32,9 +31,9 @@ pub struct FileDetails {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct EntryDetails {
-    details: FileDetails,
-    entries: Vec<FileDetails>,
+pub struct EntryDetailsJson {
+    details: FileDetailsJson,
+    entries: Vec<FileDetailsJson>,
 }
 
 pub async fn build_response(
@@ -113,9 +112,9 @@ fn build_file_entry(
     metadata: &Metadata,
     req_path: &Path,
     base_path: &Path,
-) -> Option<EntryDetails> {
+) -> Option<EntryDetailsJson> {
     match create_entry_details(metadata, req_path, base_path) {
-        Some(details) => Some(EntryDetails {
+        Some(details) => Some(EntryDetailsJson {
             details,
             entries: Vec::new(),
         }),
@@ -127,13 +126,13 @@ async fn build_directory_entry(
     metadata: &Metadata,
     req_path: &Path,
     base_path: &Path,
-) -> Option<EntryDetails> {
+) -> Option<EntryDetailsJson> {
     let details = match create_entry_details(metadata, req_path, base_path) {
         Some(deets) => deets,
         _ => return None,
     };
 
-    let mut entry_details = EntryDetails {
+    let mut entry_details = EntryDetailsJson {
         details,
         entries: Vec::new(),
     };
@@ -167,7 +166,7 @@ fn create_entry_details(
     metadata: &Metadata,
     req_path: &Path,
     base_path: &Path,
-) -> Option<FileDetails> {
+) -> Option<FileDetailsJson> {
     let file_name = match req_path.file_name() {
         Some(flnm) => flnm.to_string_lossy().to_string(),
         None => "[unable to parse filename]".to_string(),
@@ -182,7 +181,7 @@ fn create_entry_details(
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
 
-    Some(FileDetails {
+    Some(FileDetailsJson {
         is_dir: metadata.is_dir(),
         is_file: metadata.is_file(),
         is_symlink: metadata.is_symlink(),
@@ -196,7 +195,7 @@ fn create_entry_details(
 }
 
 fn compose_response(
-    details_opt: Option<EntryDetails>,
+    details_opt: Option<EntryDetailsJson>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     let details = match details_opt {
         Some(deets) => deets,
