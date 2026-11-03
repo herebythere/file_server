@@ -31,7 +31,8 @@ pub async fn build_response(
     if let Some(ranges) = get_ranges(&range_header) {
         if let Some(filepath) = get_url_path_from_request(req, &res_params.directory, true) {
             let encodings = get_encodings(req, &res_params.available_encodings);
-            if let Some(response) = build_single_range_response(&filepath, &encodings, ranges).await
+            if let Some(response) =
+                build_single_range_response(&filepath, &encodings, &ranges).await
             {
                 return Some(response);
             }
@@ -49,6 +50,8 @@ fn get_range_header(req: &Request<IncomingBody>) -> Option<String> {
         Some(enc) => enc,
         _ => return None,
     };
+
+    // put "get ranges here"
 
     match accept_encoding_header.to_str() {
         Ok(s) => Some(s.to_string()),
@@ -140,26 +143,11 @@ fn get_window_range(range_chunk: &str) -> Option<(Option<usize>, Option<usize>)>
 async fn build_single_range_response(
     filepath: &Path,
     encodings: &Vec<String>,
-    ranges: Vec<(Option<usize>, Option<usize>)>,
+    ranges: &Vec<(Option<usize>, Option<usize>)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     let content_type = get_content_type(&filepath);
 
-    if let Some(res) =
-        compose_encoded_single_range_response(&filepath, content_type, &encodings, &ranges).await
-    {
-        return Some(res);
-    };
-
-    // origin target
-    compose_single_range_response(&filepath, content_type, None, &ranges).await
-}
-
-async fn compose_encoded_single_range_response(
-    filepath: &Path,
-    content_type: &str,
-    encodings: &Vec<String>,
-    ranges: &Vec<(Option<usize>, Option<usize>)>,
-) -> Option<Result<BoxedResponse, hyper::http::Error>> {
+    // JUST PUT COMPOSE ENCODED RESPONSE HERE
     for enc in encodings {
         let encoded_path = match add_extension(filepath, &enc) {
             Some(enc_pth) => enc_pth,
@@ -173,7 +161,8 @@ async fn compose_encoded_single_range_response(
         }
     }
 
-    None
+    // origin target
+    compose_single_range_response(&filepath, content_type, None, ranges).await
 }
 
 async fn compose_single_range_response(

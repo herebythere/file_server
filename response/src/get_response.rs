@@ -32,14 +32,14 @@ pub async fn build_response(
     }
 
     let encodings = get_encodings(&req, &res_params.available_encodings);
-    if let Some(res) = build_req_path_response(&req, &res_params.directory, &encodings).await {
+    if let Some(res) = build_response_from_url_path(&req, &res_params.directory, &encodings).await {
         return res;
     };
 
     last_resort_response::build_response(StatusCode::NOT_FOUND, NOT_FOUND_404)
 }
 
-async fn build_req_path_response(
+async fn build_response_from_url_path(
     req: &Request<Incoming>,
     directory: &Path,
     encodings: &Vec<String>,
