@@ -17,6 +17,21 @@ use std::path::Path;
 use std::time::SystemTime;
 use tokio::fs;
 
+// There are "safe" numbers in JSON (strings)
+// FileDetails should preserve that
+
+pub struct FileDetails {
+    is_file: bool,
+    is_dir: bool,
+    is_symlink: bool,
+    file_name: String,
+    url_path: String,
+    size: u64,
+    created_at: Option<u128>,
+    accessed_at: Option<u128>,
+    modified_at: Option<u128>,
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FileDetailsJson {
     is_file: bool,
@@ -28,6 +43,24 @@ pub struct FileDetailsJson {
     created_at: Option<String>,
     accessed_at: Option<String>,
     modified_at: Option<String>,
+}
+
+impl FileDetailsJson {
+    fn as_file_details(&self) -> FileDetails {
+        // create some "to int from string" logic here
+
+        FileDetails {
+            is_file: false,
+            is_dir: false,
+            is_symlink: false,
+            file_name: "hai".to_string(),
+            url_path: "hai".to_string(),
+            size: 1,
+            created_at: Some(2),
+            accessed_at: Some(3),
+            modified_at: Some(4),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
