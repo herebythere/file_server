@@ -9,6 +9,7 @@ use hyper::StatusCode;
 use hyper::body::Incoming;
 use hyper::header::{ACCEPT_RANGES, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::http::{Request, Response};
+use std::fs::Metadata;
 use std::path::Path;
 use tokio::fs;
 
@@ -16,46 +17,57 @@ pub async fn build_response(
     req: Request<Incoming>,
     res_params: ResponseParams,
 ) -> Result<BoxedResponse, hyper::http::Error> {
-    if let Some(filepath) = get_url_path_from_request(&req, &res_params.directory, true) {
-        let content_type = get_content_type(&filepath);
-        let encodings = get_encodings(&req, &res_params.available_encodings);
+    let filepath = match get_url_path_from_request(&req, &res_params.directory, true) {
+        Some(fp) => fp,
+        _ => return last_resort_response::build_response(StatusCode::NOT_FOUND, NOT_FOUND_404),
+    };
 
-        // try encoded
-        for encoding in encodings {
-            let encoded_path = match add_extension(&filepath, &encoding) {
-                Some(enc_pth) => enc_pth,
-                _ => continue,
-            };
+    let content_type = get_content_type(&filepath);
+    let encodings = get_encodings(&req, &res_params.available_encodings);
 
-            if let Some(res) = compose_response(&encoded_path, content_type, Some(&encoding)).await
-            {
-                return res;
-            }
-        }
-
-        // try base
-        if let Some(res) = compose_response(&filepath, content_type, None).await {
-            return res;
-        }
+    if let Some((metadata, encoding_opt)) = get_metadata_and_encoding(&filepath, encodings).await {
+        return compose_response(&metadata, encoding_opt, content_type).await;
     };
 
     last_resort_response::build_response(StatusCode::NOT_FOUND, NOT_FOUND_404)
 }
 
-async fn compose_response(
+async fn get_metadata_and_encoding(
     filepath: &Path,
-    content_type: &str,
-    content_encoding: Option<&str>,
-) -> Option<Result<BoxedResponse, hyper::http::Error>> {
+    encodings: Vec<String>,
+) -> Option<(Metadata, Option<String>)> {
+    for encoding in encodings {
+        let encoded_path = match add_extension(&filepath, &encoding) {
+            Some(enc_pth) => enc_pth,
+            _ => continue,
+        };
+
+        let metadata = match fs::metadata(encoded_path).await {
+            Ok(m) => m,
+            _ => continue,
+        };
+
+        if metadata.is_file() {
+            return Some((metadata, Some(encoding)));
+        }
+    }
+
     let metadata = match fs::metadata(filepath).await {
         Ok(m) => m,
         _ => return None,
     };
 
-    if !metadata.is_file() {
-        return None;
+    match metadata.is_file() {
+        true => Some((metadata, None)),
+        _ => None,
     }
+}
 
+async fn compose_response(
+    metadata: &Metadata,
+    content_encoding: Option<String>,
+    content_type: &str,
+) -> Result<BoxedResponse, hyper::http::Error> {
     let mut builder = Response::builder()
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, content_type)
@@ -66,11 +78,9 @@ async fn compose_response(
         builder = builder.header(CONTENT_ENCODING, enc);
     }
 
-    Some(
-        builder.body(
-            Full::new(bytes::Bytes::new())
-                .map_err(|e| match e {})
-                .boxed(),
-        ),
+    builder.body(
+        Full::new(bytes::Bytes::new())
+            .map_err(|e| match e {})
+            .boxed(),
     )
 }

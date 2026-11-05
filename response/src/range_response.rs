@@ -29,9 +29,8 @@ pub async fn build_response(
 
     if let Some(filepath) = get_url_path_from_request(req, &res_params.directory, true) {
         let content_type = get_content_type(&filepath);
-        let encodings = get_encodings(req, &res_params.available_encodings);
 
-        // try encoded
+        let encodings = get_encodings(req, &res_params.available_encodings);
         for enc in encodings {
             let encoded_path = match add_extension(&filepath, &enc) {
                 Some(enc_pth) => enc_pth,
@@ -58,6 +57,7 @@ pub async fn build_response(
 }
 
 // on any fail return nothing
+// split stuff up, save the "verify" on usage
 fn get_ranges(req: &Request<IncomingBody>) -> Option<Vec<(Option<usize>, Option<usize>)>> {
     let accept_encoding_header = match req.headers().get(RANGE) {
         Some(enc) => enc,
@@ -154,13 +154,13 @@ async fn compose_range_response(
     content_encoding: Option<&str>,
     ranges: &Vec<(Option<usize>, Option<usize>)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    // vs multi range (stretch goal)
     match ranges.len() {
         0 => Some(last_resort_response::build_response(
             StatusCode::RANGE_NOT_SATISFIABLE,
             RANGE_NOT_SATISFIABLE_416,
         )),
         1 => compose_single_range_response(filepath, content_type, content_encoding, &ranges).await,
+        // vs multi range (stretch goal)
         _ => Some(last_resort_response::build_response(
             StatusCode::RANGE_NOT_SATISFIABLE,
             RANGE_NOT_SATISFIABLE_416,

@@ -1,9 +1,10 @@
-use crate::available_encodings::AvailableEncodings;
+use crate::available_encodings::{AvailableEncodings, add_extension};
 use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use hyper::body::Incoming;
 use hyper::http::{Request, Response};
 use std::path::{Component, MAIN_SEPARATOR, Path, PathBuf};
+use tokio::fs::File;
 use tokio::io;
 
 pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
@@ -83,4 +84,26 @@ fn normalize_path_lexicographically(path_buf: &Path) -> PathBuf {
     }
 
     normalized
+}
+
+pub async fn get_file_and_encoding(
+    filepath: &Path,
+    encodings: Vec<String>,
+) -> Option<(File, Option<String>)> {
+    for encoding in encodings {
+        let encoded_path = match add_extension(&filepath, &encoding) {
+            Some(enc_pth) => enc_pth,
+            _ => continue,
+        };
+
+        let file = match File::open(encoded_path).await {
+            Ok(f) => return Some((f, Some(encoding))),
+            _ => continue,
+        };
+    }
+
+    match File::open(filepath).await {
+        Ok(f) => return Some((f, None)),
+        _ => return None,
+    }
 }
