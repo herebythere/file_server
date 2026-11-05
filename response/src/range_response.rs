@@ -1,8 +1,8 @@
-use crate::available_encodings::{add_extension, get_encodings};
+use crate::available_encodings::get_encodings;
 use crate::content_type::get_content_type;
 use crate::last_resort_response;
 use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, RANGE_NOT_SATISFIABLE_416, ResponseParams,
+    BoxedResponse, NOT_FOUND_404, RANGE_NOT_SATISFIABLE_416, ResponseParams, get_file_and_encoding,
     get_url_path_from_request,
 };
 use futures_util::TryStreamExt;
@@ -12,8 +12,6 @@ use hyper::body::Incoming as IncomingBody;
 use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE};
 use hyper::http::{Request, Response, StatusCode};
 use std::io::SeekFrom;
-use std::path::Path;
-use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncSeekExt;
 use tokio_util::io::ReaderStream;
@@ -27,33 +25,33 @@ pub async fn build_response(
         _ => return None,
     };
 
-    if let Some(filepath) = get_url_path_from_request(req, &res_params.directory, true) {
-        let content_type = get_content_type(&filepath);
+    match attempt_range_response(req, res_params, &ranges).await {
+        Some(res) => Some(res),
+        _ => Some(last_resort_response::build_response(
+            StatusCode::NOT_FOUND,
+            NOT_FOUND_404,
+        )),
+    }
+}
 
-        let encodings = get_encodings(req, &res_params.available_encodings);
-        for enc in encodings {
-            let encoded_path = match add_extension(&filepath, &enc) {
-                Some(enc_pth) => enc_pth,
-                _ => continue,
-            };
-
-            if let Some(res) =
-                compose_range_response(&encoded_path, content_type, Some(&enc), &ranges).await
-            {
-                return Some(res);
-            }
-        }
-
-        // origin target
-        if let Some(res) = compose_range_response(&filepath, content_type, None, &ranges).await {
-            return Some(res);
-        }
+async fn attempt_range_response(
+    req: &Request<IncomingBody>,
+    res_params: &ResponseParams,
+    ranges: &Vec<(Option<usize>, Option<usize>)>,
+) -> Option<Result<BoxedResponse, hyper::http::Error>> {
+    let filepath = match get_url_path_from_request(req, &res_params.directory, true) {
+        Some(fp) => fp,
+        _ => return None,
     };
 
-    Some(last_resort_response::build_response(
-        StatusCode::NOT_FOUND,
-        NOT_FOUND_404,
-    ))
+    let content_type = get_content_type(&filepath);
+    let encodings = get_encodings(&req, &res_params.available_encodings);
+    let (file, encoding_opt) = match get_file_and_encoding(&filepath, &encodings).await {
+        Some((f, e)) => (f, e),
+        _ => return None,
+    };
+
+    compose_range_response(file, content_type, encoding_opt, &ranges).await
 }
 
 // on any fail return nothing
@@ -149,9 +147,9 @@ fn get_window_range(range_chunk: &str) -> Option<(Option<usize>, Option<usize>)>
 }
 
 async fn compose_range_response(
-    filepath: &Path,
+    file: File,
     content_type: &str,
-    content_encoding: Option<&str>,
+    content_encoding: Option<String>,
     ranges: &Vec<(Option<usize>, Option<usize>)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     match ranges.len() {
@@ -159,7 +157,7 @@ async fn compose_range_response(
             StatusCode::RANGE_NOT_SATISFIABLE,
             RANGE_NOT_SATISFIABLE_416,
         )),
-        1 => compose_single_range_response(filepath, content_type, content_encoding, &ranges).await,
+        1 => compose_single_range_response(file, content_type, content_encoding, &ranges).await,
         // vs multi range (stretch goal)
         _ => Some(last_resort_response::build_response(
             StatusCode::RANGE_NOT_SATISFIABLE,
@@ -169,17 +167,12 @@ async fn compose_range_response(
 }
 
 async fn compose_single_range_response(
-    filepath: &Path,
+    mut file: File,
     content_type: &str,
-    content_encoding: Option<&str>,
+    content_encoding: Option<String>,
     ranges: &Vec<(Option<usize>, Option<usize>)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    let mut file = match File::open(filepath).await {
-        Ok(m) => m,
-        _ => return None,
-    };
-
-    let metadata = match fs::metadata(filepath).await {
+    let metadata = match file.metadata().await {
         Ok(m) => m,
         _ => return None,
     };
@@ -204,9 +197,6 @@ async fn compose_single_range_response(
     if let Err(_err) = file.seek(SeekFrom::Start(start.clone() as u64)).await {
         return None;
     };
-
-    // let mut buffer: Vec<u8> = Vec::with_capacity(end - start);
-    // buffer.resize(end - start, 0);
 
     let content_range_header = build_content_range_header_str(start, end, size);
     let size = end - start;
@@ -252,3 +242,8 @@ fn get_start_and_end(
 fn build_content_range_header_str(start: usize, end: usize, size: usize) -> String {
     "bytes ".to_string() + &start.to_string() + "-" + &end.to_string() + "/" + &size.to_string()
 }
+
+// fn compose_multipart_range_request() {
+//         // let mut buffer: Vec<u8> = Vec::with_capacity(end - start);
+//     // buffer.resize(end - start, 0);
+// }
