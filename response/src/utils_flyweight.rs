@@ -88,7 +88,7 @@ fn normalize_path_lexicographically(path_buf: &Path) -> PathBuf {
 
 pub async fn get_file_and_encoding(
     filepath: &Path,
-    encodings: Vec<String>,
+    encodings: &Vec<String>,
 ) -> Option<(File, Option<String>)> {
     for encoding in encodings {
         let encoded_path = match add_extension(&filepath, &encoding) {
@@ -96,10 +96,10 @@ pub async fn get_file_and_encoding(
             _ => continue,
         };
 
-        let file = match File::open(encoded_path).await {
-            Ok(f) => return Some((f, Some(encoding))),
+        match File::open(encoded_path).await {
+            Ok(f) => return Some((f, Some(encoding.clone()))),
             _ => continue,
-        };
+        }
     }
 
     match File::open(filepath).await {
