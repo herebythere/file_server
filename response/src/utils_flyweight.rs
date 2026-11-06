@@ -99,7 +99,7 @@ pub async fn get_file_and_encoding(
         match File::open(encoded_path).await {
             Ok(f) => return Some((f, Some(encoding.clone()))),
             _ => continue,
-        }
+        };
     }
 
     match File::open(filepath).await {

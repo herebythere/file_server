@@ -50,11 +50,11 @@ impl FileDetailsJson {
         // create some "to int from string" logic here
 
         FileDetails {
-            is_file: false,
-            is_dir: false,
-            is_symlink: false,
-            file_name: "hai".to_string(),
-            url_path: "hai".to_string(),
+            is_file: self.is_file,
+            is_dir: self.is_dir,
+            is_symlink: self.is_symlink,
+            file_name: self.file_name.clone(),
+            url_path: self.url_path.clone(),
             size: 1,
             created_at: Some(2),
             accessed_at: Some(3),

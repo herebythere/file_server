@@ -17,62 +17,61 @@ pub async fn build_response(
     req: Request<Incoming>,
     res_params: ResponseParams,
 ) -> Result<BoxedResponse, hyper::http::Error> {
-    let filepath = match get_url_path_from_request(&req, &res_params.directory, true) {
-        Some(fp) => fp,
-        _ => return last_resort_response::build_response(StatusCode::NOT_FOUND, NOT_FOUND_404),
-    };
-
-    let content_type = get_content_type(&filepath);
-    let encodings = get_encodings(&req, &res_params.available_encodings);
-
-    if let Some((metadata, encoding_opt)) = get_metadata_and_encoding(&filepath, encodings).await {
-        return compose_response(&metadata, encoding_opt, content_type).await;
+    if let Some(filepath) = get_url_path_from_request(&req, &res_params.directory, true) {
+        let encodings = get_encodings(&req, &res_params.available_encodings);
+        if let Some((size, encoding_opt)) = get_size_and_encoding(&filepath, encodings).await {
+            let content_type = get_content_type(&filepath);
+            return compose_response(content_type, size, encoding_opt).await;
+        };
     };
 
     last_resort_response::build_response(StatusCode::NOT_FOUND, NOT_FOUND_404)
 }
 
-async fn get_metadata_and_encoding(
+async fn get_size_and_encoding(
     filepath: &Path,
     encodings: Vec<String>,
-) -> Option<(Metadata, Option<String>)> {
+) -> Option<(u64, Option<String>)> {
     for encoding in encodings {
         let encoded_path = match add_extension(&filepath, &encoding) {
             Some(enc_pth) => enc_pth,
             _ => continue,
         };
 
-        let metadata = match fs::metadata(encoded_path).await {
-            Ok(m) => m,
-            _ => continue,
-        };
-
-        if metadata.is_file() {
-            return Some((metadata, Some(encoding)));
+        if let Some(size) = get_file_size(&encoded_path).await {
+            return Some((size, Some(encoding.to_string())));
         }
     }
 
+    if let Some(size) = get_file_size(filepath).await {
+        return Some((size, None));
+    }
+
+    None
+}
+
+async fn get_file_size(filepath: &Path) -> Option<u64> {
     let metadata = match fs::metadata(filepath).await {
         Ok(m) => m,
         _ => return None,
     };
 
     match metadata.is_file() {
-        true => Some((metadata, None)),
+        true => Some(metadata.len()),
         _ => None,
     }
 }
 
 async fn compose_response(
-    metadata: &Metadata,
-    content_encoding: Option<String>,
     content_type: &str,
+    size: u64,
+    content_encoding: Option<String>,
 ) -> Result<BoxedResponse, hyper::http::Error> {
     let mut builder = Response::builder()
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, content_type)
         .header(ACCEPT_RANGES, "bytes")
-        .header(CONTENT_LENGTH, metadata.len());
+        .header(CONTENT_LENGTH, size);
 
     if let Some(enc) = content_encoding {
         builder = builder.header(CONTENT_ENCODING, enc);
