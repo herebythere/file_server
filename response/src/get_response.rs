@@ -49,12 +49,12 @@ async fn build_response_from_url_path(
         _ => return None,
     };
 
-    let content_type = get_content_type(&filepath);
     let (file, encoding_opt) = match get_file_and_encoding(&filepath, encodings).await {
         Some((f, e)) => (f, e),
         _ => return None,
     };
 
+    let content_type = get_content_type(&filepath);
     compose_response(file, content_type, encoding_opt).await
 }
 

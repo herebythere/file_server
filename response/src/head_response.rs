@@ -9,7 +9,6 @@ use hyper::StatusCode;
 use hyper::body::Incoming;
 use hyper::header::{ACCEPT_RANGES, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::http::{Request, Response};
-use std::fs::Metadata;
 use std::path::Path;
 use tokio::fs;
 
@@ -28,6 +27,8 @@ pub async fn build_response(
     last_resort_response::build_response(StatusCode::NOT_FOUND, NOT_FOUND_404)
 }
 
+// just use "file" and grab metadata instead of more code?
+
 async fn get_size_and_encoding(
     filepath: &Path,
     encodings: Vec<String>,
@@ -43,11 +44,10 @@ async fn get_size_and_encoding(
         }
     }
 
-    if let Some(size) = get_file_size(filepath).await {
-        return Some((size, None));
+    match get_file_size(filepath).await {
+        Some(size) => Some((size, None)),
+        _ => None,
     }
-
-    None
 }
 
 async fn get_file_size(filepath: &Path) -> Option<u64> {

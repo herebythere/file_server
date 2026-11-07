@@ -13,16 +13,10 @@ use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYP
 use hyper::http::{HeaderValue, Request, Response, StatusCode};
 use std::fs::Metadata;
 use std::io::SeekFrom;
+use std::num::ParseIntError;
 use tokio::fs::File;
 use tokio::io::AsyncSeekExt;
 use tokio_util::io::ReaderStream;
-
-struct FileDetails {
-    metadata: Metadata,
-    ranges: Vec<String>,
-    content_type: String,
-    range_header: HeaderValue,
-}
 
 pub async fn build_response(
     req: &Request<IncomingBody>,
@@ -54,15 +48,6 @@ async fn attempt_range_response(
         _ => return None,
     };
 
-    // struct with {
-    // filepath
-    // content_type
-    // encoding_opt
-    // range_header
-    // metadata
-    //
-    // }
-
     let encodings = get_encodings(&req, &res_params.available_encodings);
     let (file, encoding_opt) = match get_file_and_encoding(&filepath, &encodings).await {
         Some((f, e)) => (f, e),
@@ -81,7 +66,17 @@ async fn attempt_range_response(
     // END DOLES THIS FILE EXIST
 
     // THEN WE ANALYZE RANGES DO RANGES FIT FILE
-    let ranges = get_ranges(range_header, metadata.size());
+    let ranges = match get_ranges(range_header, metadata.len()) {
+        Some(rngs) => rngs,
+        _ => {
+            return Some(last_resort_response::build_response(
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                RANGE_NOT_SATISFIABLE_416,
+            ));
+        }
+    };
+    // return RANGE_NOT_SATISFIABLE_416
+
     // END ANALYZE RANGES
 
     // THEN SEND FILE AND RANGES
@@ -93,7 +88,7 @@ async fn attempt_range_response(
             RANGE_NOT_SATISFIABLE_416,
         )),
         1 => {
-            compose_single_range_response(file, metadata, content_type, encoding_opt, &ranges).await
+            compose_single_range_response(file, metadata, content_type, encoding_opt, ranges).await
         }
         // vs multi range (stretch goal)
         _ => Some(last_resort_response::build_response(
@@ -105,24 +100,74 @@ async fn attempt_range_response(
 
 // on any fail return nothing
 // split stuff up, save the "verify" on usage
-fn get_ranges(range_header: &HeaderValue, size: u64) -> Vec<String> {
+// vec or error
+fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> {
     let header_str = match range_header.to_str() {
         Ok(hstr) => hstr,
-        _ => return ranges,
+        _ => return None,
     };
 
-    let mut ranges: Vec<String> = Vec::new();
     let ranges_str = match header_str.trim().strip_prefix("bytes=") {
         Some(r) => r,
-        _ => return ranges,
+        _ => return None,
     };
 
+    let mut ranges: Vec<(u64, u64)> = Vec::new();
     for range in ranges_str.split(",") {
         // check ranges piece by piece
-        ranges.push(range.to_string());
+        match build_window_ranges(range, size) {
+            Some(r) => ranges.push(r),
+            _ => return None,
+        }
     }
 
-    ranges
+    Some(ranges)
+}
+
+fn build_window_ranges(range_str: &str, size: u64) -> Option<(u64, u64)> {
+    let values: Vec<&str> = range_str.split("-").collect();
+
+    if 2 != values.len() {
+        return None;
+    }
+
+    let first = values.get(0);
+    let second = values.get(1);
+
+    let (first_str, second_str) = match (first, second) {
+        (Some(f), Some(s)) => (f, s),
+        _ => return None,
+    };
+
+    let start_range_int: Result<u64, ParseIntError> = first_str.parse();
+    let end_range_int: Result<u64, ParseIntError> = second_str.parse();
+
+    match (start_range_int, end_range_int) {
+        (Ok(start_int), Ok(mut end_int)) => {
+            if size < end_int {
+                end_int = size;
+            }
+
+            if start_int < end_int {
+                return Some((start_int, end_int));
+            }
+
+            None
+        }
+        (Err(_), Ok(mut end_int)) => {
+            if size < end_int {
+                end_int = size;
+            }
+            Some((0, end_int))
+        }
+        (Ok(mut start_int), Err(_)) => {
+            if size < start_int {
+                start_int = size;
+            }
+            Some((start_int, size))
+        }
+        _ => None,
+    }
 }
 
 async fn compose_single_range_response(
@@ -130,13 +175,12 @@ async fn compose_single_range_response(
     metadata: Metadata,
     content_type: &str,
     content_encoding: Option<String>,
-    ranges: &Vec<String>,
+    ranges: Vec<(u64, u64)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     // split here for single range response
-    let size = metadata.len() as usize;
-    let range = ranges.get(0);
-    let (start, end) = match get_start_and_end(range, size) {
-        Some(se) => se,
+    let size = metadata.len();
+    let (start, end) = match ranges.get(0) {
+        Some((s, e)) => (s.clone(), e.clone()),
         _ => {
             return Some(last_resort_response::build_response(
                 StatusCode::RANGE_NOT_SATISFIABLE,
@@ -145,7 +189,7 @@ async fn compose_single_range_response(
         }
     };
 
-    if let Err(_err) = file.seek(SeekFrom::Start(start.clone() as u64)).await {
+    if let Err(_err) = file.seek(SeekFrom::Start(start.clone())).await {
         return None;
     };
 
@@ -162,100 +206,13 @@ async fn compose_single_range_response(
         builder = builder.header(CONTENT_ENCODING, enc);
     }
 
-    let reader_stream = ReaderStream::with_capacity(file, size);
+    let reader_stream = ReaderStream::with_capacity(file, size as usize);
     let stream_body = StreamBody::new(reader_stream.map_ok(Frame::data));
     let boxed_body = stream_body.boxed();
 
     Some(builder.body(boxed_body))
 }
 
-fn get_start_and_end(range: Option<&String>, size: usize) -> Option<(usize, usize)> {
-    // parse the string
-
-    let (start, end) = match range {
-        // suffix (S - N, S)
-        Some((None, Some(end))) => (size - end, size),
-        // prefix (N, S)
-        Some((Some(start), None)) => (start.clone(), size),
-        // windowed (N, M)
-        Some((Some(start), Some(end))) => (start.clone(), end.clone()),
-        _ => return None,
-    };
-
-    if start <= end && end <= size {
-        return Some((start, end));
-    }
-
-    None
-}
-
-fn get_window_range(range_chunk: &str) -> Option<(Option<usize>, Option<usize>)> {
-    let mut values = range_chunk.split("-");
-
-    let start_range_str = match values.next() {
-        Some(start_range) => start_range,
-        _ => return None,
-    };
-
-    let end_range_str = match values.next() {
-        Some(end_range) => end_range,
-        _ => return None,
-    };
-
-    let start_range_int: usize = match start_range_str.parse() {
-        Ok(sri) => sri,
-        _ => return None,
-    };
-
-    let end_range_int: usize = match end_range_str.parse() {
-        Ok(sri) => sri,
-        _ => return None,
-    };
-
-    if start_range_int < end_range_int {
-        return Some((Some(start_range_int), Some(end_range_int)));
-    }
-
-    None
-}
-
-fn build_content_range_header_str(start: usize, end: usize, size: usize) -> String {
+fn build_content_range_header_str(start: u64, end: u64, size: u64) -> String {
     "bytes ".to_string() + &start.to_string() + "-" + &end.to_string() + "/" + &size.to_string()
 }
-
-// fn compose_multipart_range_request() {
-//         // let mut buffer: Vec<u8> = Vec::with_capacity(end - start);
-//     // buffer.resize(end - start, 0);
-// }
-
-//     // prefix range
-//     if let Some(suffexless) = range_str.strip_suffix("-") {
-//         let start_range_int: usize = match suffexless.parse() {
-//             Ok(sri) => sri,
-//             _ => return None,
-//         };
-
-//         // add verified ranges here
-
-//         ranges.push((Some(start_range_int), None));
-//         continue;
-//     }
-
-//     // suffix-range
-//     if let Some(prefixless) = range_str.strip_prefix("-") {
-//         let end_range_int: usize = match prefixless.parse() {
-//             Ok(sri) => sri,
-//             _ => return None,
-//         };
-
-//         ranges.push((None, Some(end_range_int)));
-//         continue;
-//     }
-
-//     // window-range
-//     let start_end_range = match get_window_range(range_str) {
-//         Some(ser) => ser,
-//         _ => return None,
-//     };
-
-//     ranges.push(start_end_range)
