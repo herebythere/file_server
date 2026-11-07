@@ -98,9 +98,8 @@ async fn attempt_range_response(
     }
 }
 
-// on any fail return nothing
-// split stuff up, save the "verify" on usage
-// vec or error
+// Multipart ranges must be sequential and non overlapping
+// otherwise just load the entire file.
 fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> {
     let header_str = match range_header.to_str() {
         Ok(hstr) => hstr,
@@ -112,11 +111,18 @@ fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> 
         _ => return None,
     };
 
+    let mut tail = 0;
     let mut ranges: Vec<(u64, u64)> = Vec::new();
     for range in ranges_str.split(",") {
-        // check ranges piece by piece
-        match build_window_ranges(range, size) {
-            Some(r) => ranges.push(r),
+        match build_window_range(range, size) {
+            Some((start, end)) => {
+                if start <= tail {
+                    return None;
+                }
+                tail = end;
+
+                ranges.push((start, end));
+            },
             _ => return None,
         }
     }
@@ -124,7 +130,7 @@ fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> 
     Some(ranges)
 }
 
-fn build_window_ranges(range_str: &str, size: u64) -> Option<(u64, u64)> {
+fn build_window_range(range_str: &str, size: u64) -> Option<(u64, u64)> {
     let values: Vec<&str> = range_str.split("-").collect();
 
     if 2 != values.len() {
