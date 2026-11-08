@@ -11,12 +11,13 @@ use hyper::body::Frame;
 use hyper::body::Incoming as IncomingBody;
 use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE};
 use hyper::http::{HeaderValue, Request, Response, StatusCode};
-use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::num::ParseIntError;
 use tokio::fs::File;
 use tokio::io::AsyncSeekExt;
 use tokio_util::io::ReaderStream;
+
+const MAX_RANGE_SIZE: u64 = 26214400;
 
 pub async fn build_response(
     req: &Request<IncomingBody>,
@@ -66,6 +67,8 @@ async fn attempt_range_response(
     // END DOLES THIS FILE EXIST
 
     // THEN WE ANALYZE RANGES DO RANGES FIT FILE
+    //
+    // Max range request like 25mb
     let ranges = match get_ranges(range_header, metadata.len()) {
         Some(rngs) => rngs,
         _ => {
@@ -88,7 +91,8 @@ async fn attempt_range_response(
             RANGE_NOT_SATISFIABLE_416,
         )),
         1 => {
-            compose_single_range_response(file, metadata, content_type, encoding_opt, ranges).await
+            compose_single_range_response(file, metadata.len(), content_type, encoding_opt, ranges)
+                .await
         }
         // vs multi range (stretch goal)
         _ => Some(last_resort_response::build_response(
@@ -100,6 +104,7 @@ async fn attempt_range_response(
 
 // Multipart ranges must be sequential and non overlapping
 // otherwise just load the entire file.
+// Should probably keep a "limit" ?
 fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> {
     let header_str = match range_header.to_str() {
         Ok(hstr) => hstr,
@@ -111,18 +116,23 @@ fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> 
         _ => return None,
     };
 
+    let mut request_body_size = 0;
     let mut tail = 0;
     let mut ranges: Vec<(u64, u64)> = Vec::new();
     for range in ranges_str.split(",") {
         match build_window_range(range, size) {
             Some((start, end)) => {
+                request_body_size += end - start;
+                if MAX_RANGE_SIZE < request_body_size {
+                    return None;
+                }
                 if start <= tail {
                     return None;
                 }
                 tail = end;
 
                 ranges.push((start, end));
-            },
+            }
             _ => return None,
         }
     }
@@ -178,13 +188,12 @@ fn build_window_range(range_str: &str, size: u64) -> Option<(u64, u64)> {
 
 async fn compose_single_range_response(
     mut file: File,
-    metadata: Metadata,
+    size: u64,
     content_type: &str,
     content_encoding: Option<String>,
     ranges: Vec<(u64, u64)>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     // split here for single range response
-    let size = metadata.len();
     let (start, end) = match ranges.get(0) {
         Some((s, e)) => (s.clone(), e.clone()),
         _ => {
