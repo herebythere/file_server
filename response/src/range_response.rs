@@ -109,7 +109,7 @@ fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> 
 
     let mut split_ranges = ranges_str.split(",");
 
-    // get first entry for initial body size and tail / end of previous segment
+    // get first ranges to establish initial body size and tail / end of previous segment
     let (mut request_body_size, mut tail) = match split_ranges.next() {
         Some(range) => match build_window_range(range, size) {
             Some((start, end)) => {
@@ -125,6 +125,7 @@ fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> 
         return None;
     }
 
+    // get other ranges
     while let Some(range) = split_ranges.next() {
         match build_window_range(range, size) {
             Some((start, end)) => {
