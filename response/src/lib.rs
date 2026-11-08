@@ -9,5 +9,5 @@ mod serialize_details;
 mod utils_flyweight;
 
 pub use crate::responses::compose_response;
-pub use crate::serialize_details::{EntryDetailsJson, FileDetailsJson};
+pub use crate::serialize_details::{EntryDetailsJson, FileDetails, FileDetailsJson};
 pub use crate::utils_flyweight::{BoxedResponse, ResponseParams, get_url_path_from_request};

@@ -12,24 +12,52 @@ use serde_json;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::Error as IoError;
+use std::num::ParseIntError;
 use std::path::Component;
 use std::path::Path;
 use std::time::SystemTime;
 use tokio::fs;
 
-// There are "safe" numbers in JSON (strings)
-// FileDetails should preserve that
-
 pub struct FileDetails {
-    is_file: bool,
-    is_dir: bool,
-    is_symlink: bool,
-    file_name: String,
-    url_path: String,
-    size: u64,
-    created_at: Option<u128>,
-    accessed_at: Option<u128>,
-    modified_at: Option<u128>,
+    pub is_file: bool,
+    pub is_dir: bool,
+    pub is_symlink: bool,
+    pub file_name: String,
+    pub url_path: String,
+    pub size: u64,
+    pub created_at: Option<u128>,
+    pub accessed_at: Option<u128>,
+    pub modified_at: Option<u128>,
+}
+
+impl FileDetails {
+    pub fn json_as_file_details(&self) -> FileDetailsJson {
+        let size = self.size.to_string();
+        let created_at = get_optional_string(&self.created_at);
+        let accessed_at = get_optional_string(&self.accessed_at);
+        let modified_at = get_optional_string(&self.modified_at);
+
+        FileDetailsJson {
+            is_file: self.is_file,
+            is_dir: self.is_dir,
+            is_symlink: self.is_symlink,
+            file_name: self.file_name.clone(),
+            url_path: self.url_path.clone(),
+            size,
+            created_at,
+            accessed_at,
+            modified_at,
+        }
+    }
+}
+
+fn get_optional_string(opt_num: &Option<u128>) -> Option<String> {
+    let num = match opt_num {
+        Some(n) => n,
+        _ => return None,
+    };
+
+    Some(num.to_string())
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -46,21 +74,50 @@ pub struct FileDetailsJson {
 }
 
 impl FileDetailsJson {
-    fn as_file_details(&self) -> FileDetails {
-        // create some "to int from string" logic here
+    pub fn as_file_details(&self) -> Result<FileDetails, ParseIntError> {
+        let size: u64 = match self.size.parse() {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
+        let created_at = match get_optional_number(&self.created_at) {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
+        let accessed_at = match get_optional_number(&self.accessed_at) {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
+        let modified_at = match get_optional_number(&self.modified_at) {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
 
-        FileDetails {
+        Ok(FileDetails {
             is_file: self.is_file,
             is_dir: self.is_dir,
             is_symlink: self.is_symlink,
             file_name: self.file_name.clone(),
             url_path: self.url_path.clone(),
-            size: 1,
-            created_at: Some(2),
-            accessed_at: Some(3),
-            modified_at: Some(4),
-        }
+            size,
+            created_at,
+            accessed_at,
+            modified_at,
+        })
     }
+}
+
+fn get_optional_number(num_opt: &Option<String>) -> Result<Option<u128>, ParseIntError> {
+    let num_string = match num_opt {
+        Some(num_s) => num_s,
+        _ => return Ok(None),
+    };
+
+    let num: u128 = match num_string.parse() {
+        Ok(n) => n,
+        Err(e) => return Err(e),
+    };
+
+    Ok(Some(num))
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
