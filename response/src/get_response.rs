@@ -2,9 +2,10 @@ use crate::available_encodings::get_encodings;
 use crate::content_type::get_content_type;
 use crate::last_resort_response;
 use crate::range_response;
+use crate::response_params::ResponseParams;
 use crate::serialize_details;
-use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, ResponseParams, get_file_and_encoding, get_url_path_from_request,
+use crate::url_path_utils::{
+    BoxedResponse, NOT_FOUND_404, get_file_and_encoding, get_url_path_from_request,
 };
 use futures_util::TryStreamExt;
 use http_body_util::{BodyExt, StreamBody};

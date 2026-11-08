@@ -1,8 +1,9 @@
 use crate::available_encodings::get_encodings;
 use crate::content_type::get_content_type;
 use crate::last_resort_response;
-use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, RANGE_NOT_SATISFIABLE_416, ResponseParams, get_file_and_encoding,
+use crate::response_params::ResponseParams;
+use crate::url_path_utils::{
+    BoxedResponse, NOT_FOUND_404, RANGE_NOT_SATISFIABLE_416, get_file_and_encoding,
     get_url_path_from_request,
 };
 use futures_util::TryStreamExt;
@@ -64,11 +65,6 @@ async fn attempt_range_response(
         return None;
     }
 
-    // END DOLES THIS FILE EXIST
-
-    // THEN WE ANALYZE RANGES DO RANGES FIT FILE
-    //
-    // Max range request like 25mb
     let ranges = match get_ranges(range_header, metadata.len()) {
         Some(rngs) => rngs,
         _ => {
@@ -78,11 +74,7 @@ async fn attempt_range_response(
             ));
         }
     };
-    // return RANGE_NOT_SATISFIABLE_416
 
-    // END ANALYZE RANGES
-
-    // THEN SEND FILE AND RANGES
     let content_type = get_content_type(&filepath);
 
     match ranges.len() {
@@ -102,9 +94,6 @@ async fn attempt_range_response(
     }
 }
 
-// Multipart ranges must be sequential and non overlapping
-// otherwise just load the entire file.
-// Should probably keep a "limit" ?
 fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> {
     let header_str = match range_header.to_str() {
         Ok(hstr) => hstr,

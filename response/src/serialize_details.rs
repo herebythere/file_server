@@ -1,7 +1,6 @@
 use crate::last_resort_response;
-use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
-};
+use crate::response_params::ResponseParams;
+use crate::url_path_utils::{BoxedResponse, NOT_FOUND_404, get_url_path_from_request};
 use http_body_util::{BodyExt, Full};
 use hyper::StatusCode;
 use hyper::body::Incoming;
@@ -28,36 +27,6 @@ pub struct FileDetails {
     pub created_at: Option<u128>,
     pub accessed_at: Option<u128>,
     pub modified_at: Option<u128>,
-}
-
-impl FileDetails {
-    pub fn json_as_file_details(&self) -> FileDetailsJson {
-        let size = self.size.to_string();
-        let created_at = get_optional_string(&self.created_at);
-        let accessed_at = get_optional_string(&self.accessed_at);
-        let modified_at = get_optional_string(&self.modified_at);
-
-        FileDetailsJson {
-            is_file: self.is_file,
-            is_dir: self.is_dir,
-            is_symlink: self.is_symlink,
-            file_name: self.file_name.clone(),
-            url_path: self.url_path.clone(),
-            size,
-            created_at,
-            accessed_at,
-            modified_at,
-        }
-    }
-}
-
-fn get_optional_string(opt_num: &Option<u128>) -> Option<String> {
-    let num = match opt_num {
-        Some(n) => n,
-        _ => return None,
-    };
-
-    Some(num.to_string())
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -106,6 +75,12 @@ impl FileDetailsJson {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct EntryDetailsJson {
+    details: FileDetailsJson,
+    entries: Vec<FileDetailsJson>,
+}
+
 fn get_optional_number(num_opt: &Option<String>) -> Result<Option<u128>, ParseIntError> {
     let num_string = match num_opt {
         Some(num_s) => num_s,
@@ -118,12 +93,6 @@ fn get_optional_number(num_opt: &Option<String>) -> Result<Option<u128>, ParseIn
     };
 
     Ok(Some(num))
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct EntryDetailsJson {
-    details: FileDetailsJson,
-    entries: Vec<FileDetailsJson>,
 }
 
 pub async fn build_response(

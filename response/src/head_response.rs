@@ -1,9 +1,8 @@
 use crate::available_encodings::{add_extension, get_encodings};
 use crate::content_type::get_content_type;
 use crate::last_resort_response;
-use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
-};
+use crate::response_params::ResponseParams;
+use crate::url_path_utils::{BoxedResponse, NOT_FOUND_404, get_url_path_from_request};
 use http_body_util::{BodyExt, Full};
 use hyper::StatusCode;
 use hyper::body::Incoming;

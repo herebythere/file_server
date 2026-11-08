@@ -1,4 +1,4 @@
-use crate::available_encodings::{AvailableEncodings, add_extension};
+use crate::available_encodings::add_extension;
 use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use hyper::body::Incoming;
@@ -12,23 +12,6 @@ pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
 pub const NOT_FOUND_404: &str = "404 not found";
 pub const METHOD_NOT_ALLOWED_405: &str = "405 method not allowed";
 pub const RANGE_NOT_SATISFIABLE_416: &str = "416 range not satisfiable";
-
-#[derive(Clone, Debug)]
-pub struct ResponseParams {
-    pub directory: PathBuf,
-    pub available_encodings: AvailableEncodings,
-}
-
-impl ResponseParams {
-    pub fn from(directory: &Path, content_encodings: &Vec<String>) -> ResponseParams {
-        let available_encodings = AvailableEncodings::from(content_encodings);
-
-        ResponseParams {
-            directory: directory.to_path_buf(),
-            available_encodings,
-        }
-    }
-}
 
 // https://doc.rust-lang.org/std/path/struct.Path.html#method.normalize_lexically
 // normalize lexically in nightly
