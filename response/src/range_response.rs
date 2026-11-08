@@ -105,10 +105,27 @@ fn get_ranges(range_header: &HeaderValue, size: u64) -> Option<Vec<(u64, u64)>> 
         _ => return None,
     };
 
-    let mut request_body_size = 0;
-    let mut tail = 0;
     let mut ranges: Vec<(u64, u64)> = Vec::new();
-    for range in ranges_str.split(",") {
+
+    let mut split_ranges = ranges_str.split(",");
+
+    // get first entry for initial body size and tail / end of previous segment
+    let (mut request_body_size, mut tail) = match split_ranges.next() {
+        Some(range) => match build_window_range(range, size) {
+            Some((start, end)) => {
+                ranges.push((start, end));
+                (end - start, end)
+            }
+            _ => return None,
+        },
+        _ => return None,
+    };
+
+    if MAX_RANGE_SIZE < request_body_size {
+        return None;
+    }
+
+    while let Some(range) = split_ranges.next() {
         match build_window_range(range, size) {
             Some((start, end)) => {
                 request_body_size += end - start;
@@ -198,19 +215,19 @@ async fn compose_single_range_response(
     };
 
     let content_range_header = build_content_range_header_str(start, end, size);
-    let size = end - start;
+    let buffer_size = end - start + 1;
 
     let mut builder = Response::builder()
         .status(StatusCode::PARTIAL_CONTENT)
         .header(CONTENT_TYPE, content_type)
         .header(CONTENT_RANGE, content_range_header)
-        .header(CONTENT_LENGTH, size);
+        .header(CONTENT_LENGTH, buffer_size);
 
     if let Some(enc) = content_encoding {
         builder = builder.header(CONTENT_ENCODING, enc);
     }
 
-    let reader_stream = ReaderStream::with_capacity(file, size as usize);
+    let reader_stream = ReaderStream::with_capacity(file, buffer_size as usize);
     let stream_body = StreamBody::new(reader_stream.map_ok(Frame::data));
     let boxed_body = stream_body.boxed();
 
