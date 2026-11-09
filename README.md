@@ -139,7 +139,7 @@ Which could produce a json object similar to the following:
 			"is_symlink": false,
 			"file_name": "index.html.zst",
 			"url_path": "/demo/index.html.zst",
-			"size": 304,
+			"size": "304",
 			"created_at": "1788035132686",
 			"accessed_at": "1788035156555",
 			"modified_at": "1788035132686"
@@ -150,7 +150,7 @@ Which could produce a json object similar to the following:
 			"is_symlink": false,
 			"file_name": "index.html",
 			"url_path": "/demo/index.html",
-			"size": 460,
+			"size": "460",
 			"created_at": "1788035132686",
 			"accessed_at": "1788035156555",
 			"modified_at": "1788035132686"
@@ -159,7 +159,9 @@ Which could produce a json object similar to the following:
 }
 ```
 
-Json structs can be swapped for a more rust-specific struct:
+Timestamps are `u128` integers in rust. File sizes are `u64` integers. Since neither of those
+types can actually parse in Javascript-land, numbers in the schema above are sent as strings.
+Json structs structs can be swapped for a more rust-specific FileDetails struct:
 
 ```rust
 use response::{EntryDetailsJson, FileDetailsJson, FileDetails};
