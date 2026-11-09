@@ -1,9 +1,10 @@
-use crate::available_encodings::AvailableEncodings;
+use crate::available_encodings::add_extension;
 use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use hyper::body::Incoming;
 use hyper::http::{Request, Response};
 use std::path::{Component, MAIN_SEPARATOR, Path, PathBuf};
+use tokio::fs::File;
 use tokio::io;
 
 pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
@@ -11,23 +12,6 @@ pub type BoxedResponse = Response<BoxBody<Bytes, io::Error>>;
 pub const NOT_FOUND_404: &str = "404 not found";
 pub const METHOD_NOT_ALLOWED_405: &str = "405 method not allowed";
 pub const RANGE_NOT_SATISFIABLE_416: &str = "416 range not satisfiable";
-
-#[derive(Clone, Debug)]
-pub struct ResponseParams {
-    pub directory: PathBuf,
-    pub available_encodings: AvailableEncodings,
-}
-
-impl ResponseParams {
-    pub fn from(directory: &Path, content_encodings: &Vec<String>) -> ResponseParams {
-        let available_encodings = AvailableEncodings::from(content_encodings);
-
-        ResponseParams {
-            directory: directory.to_path_buf(),
-            available_encodings,
-        }
-    }
-}
 
 // https://doc.rust-lang.org/std/path/struct.Path.html#method.normalize_lexically
 // normalize lexically in nightly
@@ -37,13 +21,9 @@ pub fn get_url_path_from_request(
     add_index_on_directory: bool,
 ) -> Option<PathBuf> {
     let uri_path = req.uri().path();
-    let url_path_as_os_path = convert_to_os_path(&uri_path, add_index_on_directory);
-
+    let url_path_as_os_path = convert_url_path_to_os_path(&uri_path, add_index_on_directory);
     let joined_path = directory.join(url_path_as_os_path);
-    let normalized = match normalize_path_lexicographically(&joined_path) {
-        Some(pth) => pth,
-        _ => return None,
-    };
+    let normalized = normalize_path_lexicographically(&joined_path);
 
     match normalized.starts_with(directory) {
         true => Some(normalized),
@@ -51,11 +31,9 @@ pub fn get_url_path_from_request(
     }
 }
 
-fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
+fn convert_url_path_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathBuf {
     let mut normalized_uri_path = PathBuf::new();
-
-    let splitted = path_buf_str.split("/");
-    for split in splitted {
+    for split in path_buf_str.split("/") {
         match split {
             "" => {}
             "." => normalized_uri_path.push(Component::CurDir),
@@ -71,17 +49,14 @@ fn convert_to_os_path(path_buf_str: &str, add_index_on_directory: bool) -> PathB
     normalized_uri_path
 }
 
-// return with a path or an error
-fn normalize_path_lexicographically(path_buf: &Path) -> Option<PathBuf> {
+fn normalize_path_lexicographically(path_buf: &Path) -> PathBuf {
     let mut normalized_stack: Vec<Component> = Vec::new();
     for part in path_buf.components() {
         match part {
-            Component::ParentDir => {
-                if let None = normalized_stack.pop() {
-                    return None;
-                }
-            }
             Component::CurDir => {}
+            Component::ParentDir => {
+                normalized_stack.pop();
+            }
             _ => normalized_stack.push(part),
         }
     }
@@ -91,5 +66,27 @@ fn normalize_path_lexicographically(path_buf: &Path) -> Option<PathBuf> {
         normalized.push(part);
     }
 
-    Some(normalized)
+    normalized
+}
+
+pub async fn get_file_and_encoding(
+    filepath: &Path,
+    encodings: &Vec<String>,
+) -> Option<(File, Option<String>)> {
+    for encoding in encodings {
+        let encoded_path = match add_extension(&filepath, &encoding) {
+            Some(enc_pth) => enc_pth,
+            _ => continue,
+        };
+
+        match File::open(encoded_path).await {
+            Ok(f) => return Some((f, Some(encoding.clone()))),
+            _ => continue,
+        };
+    }
+
+    match File::open(filepath).await {
+        Ok(f) => return Some((f, None)),
+        _ => return None,
+    }
 }

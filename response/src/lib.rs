@@ -4,10 +4,12 @@ mod get_response;
 mod head_response;
 mod last_resort_response;
 mod range_response;
+mod response_params;
 mod responses;
 mod serialize_details;
-mod utils_flyweight;
+mod url_path_utils;
 
-pub use crate::responses::compose_response;
-pub use crate::serialize_details::{EntryDetails, FileDetails};
-pub use crate::utils_flyweight::{BoxedResponse, ResponseParams, get_url_path_from_request};
+pub use response_params::ResponseParams;
+pub use responses::compose_response;
+pub use serialize_details::{EntryDetailsJson, FileDetails, FileDetailsJson};
+pub use url_path_utils::{BoxedResponse, get_url_path_from_request};

@@ -1,5 +1,5 @@
 use crate::content_type::HTML;
-use crate::utils_flyweight::BoxedResponse;
+use crate::url_path_utils::BoxedResponse;
 use bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::StatusCode;

@@ -128,9 +128,9 @@ Which could produce a json object similar to the following:
 		"file_name": "demo",
 		"url_path": "/demo",
 		"size": 128,
-		"created_at": 1788035132686,
-		"accessed_at": 1792381141727,
-		"modified_at": 1792381141619
+		"created_at": "1788035132686",
+		"accessed_at": "1792381141727",
+		"modified_at": "1792381141619"
 	},
 	"entries": [
 		{
@@ -140,9 +140,9 @@ Which could produce a json object similar to the following:
 			"file_name": "index.html.zst",
 			"url_path": "/demo/index.html.zst",
 			"size": 304,
-			"created_at": 1788035132686,
-			"accessed_at": 1788035156555,
-			"modified_at": 1788035132686
+			"created_at": "1788035132686",
+			"accessed_at": "1788035156555",
+			"modified_at": "1788035132686"
 		},
 		{
 			"is_file": true,
@@ -151,12 +151,22 @@ Which could produce a json object similar to the following:
 			"file_name": "index.html",
 			"url_path": "/demo/index.html",
 			"size": 460,
-			"created_at": 1788035132686,
-			"accessed_at": 1788035156555,
-			"modified_at": 1788035132686
+			"created_at": "1788035132686",
+			"accessed_at": "1788035156555",
+			"modified_at": "1788035132686"
 		}
 	]
 }
+```
+
+Json structs can be swapped for a more rust-specific struct:
+
+```rust
+use response::{EntryDetailsJson, FileDetailsJson, FileDetails};
+
+let file_details_json: FileDetailsJson = ...
+
+let file_details: Results<FileDetails, ParseIntError> = file_details_json::as_file_details();
 ```
 
 ## License

@@ -1,7 +1,6 @@
 use crate::last_resort_response;
-use crate::utils_flyweight::{
-    BoxedResponse, NOT_FOUND_404, ResponseParams, get_url_path_from_request,
-};
+use crate::response_params::ResponseParams;
+use crate::url_path_utils::{BoxedResponse, NOT_FOUND_404, get_url_path_from_request};
 use http_body_util::{BodyExt, Full};
 use hyper::StatusCode;
 use hyper::body::Incoming;
@@ -12,36 +11,118 @@ use serde_json;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::Error as IoError;
+use std::num::ParseIntError;
 use std::path::Component;
 use std::path::Path;
 use std::time::SystemTime;
 use tokio::fs;
 
-// Need to jouge up for some clean json stuff, option should be property exists or no not NULL
-#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FileDetails {
+    pub is_file: bool,
+    pub is_dir: bool,
+    pub is_symlink: bool,
+    pub file_name: String,
+    pub url_path: String,
+    pub size: u64,
+    pub created_at: Option<u128>,
+    pub accessed_at: Option<u128>,
+    pub modified_at: Option<u128>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct FileDetailsJson {
     is_file: bool,
     is_dir: bool,
     is_symlink: bool,
     file_name: String,
     url_path: String,
-    size: u64,
-    created_at: Option<u128>,
-    accessed_at: Option<u128>,
-    modified_at: Option<u128>,
+    size: String,
+    created_at: Option<String>,
+    accessed_at: Option<String>,
+    modified_at: Option<String>,
+}
+
+impl FileDetailsJson {
+    pub fn as_file_details(&self) -> Result<FileDetails, ParseIntError> {
+        let size: u64 = match self.size.parse() {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
+        let created_at = match get_optional_number(&self.created_at) {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
+        let accessed_at = match get_optional_number(&self.accessed_at) {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
+        let modified_at = match get_optional_number(&self.modified_at) {
+            Ok(num) => num,
+            Err(e) => return Err(e),
+        };
+
+        Ok(FileDetails {
+            is_file: self.is_file,
+            is_dir: self.is_dir,
+            is_symlink: self.is_symlink,
+            file_name: self.file_name.clone(),
+            url_path: self.url_path.clone(),
+            size,
+            created_at,
+            accessed_at,
+            modified_at,
+        })
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct EntryDetails {
-    details: FileDetails,
-    entries: Vec<FileDetails>,
+pub struct EntryDetailsJson {
+    details: FileDetailsJson,
+    entries: Vec<FileDetailsJson>,
+}
+
+fn get_optional_number(num_opt: &Option<String>) -> Result<Option<u128>, ParseIntError> {
+    let num_string = match num_opt {
+        Some(num_s) => num_s,
+        _ => return Ok(None),
+    };
+
+    let num: u128 = match num_string.parse() {
+        Ok(n) => n,
+        Err(e) => return Err(e),
+    };
+
+    Ok(Some(num))
 }
 
 pub async fn build_response(
     req: &Request<Incoming>,
     res_params: &ResponseParams,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
-    // Di this at start of request send down function chain
+    let params_map = match get_uri_query_map(req) {
+        Some(pm) => pm,
+        _ => return None,
+    };
+
+    let details_as = match params_map.get("details_as") {
+        Some(srlz) => srlz,
+        _ => return None,
+    };
+
+    // After this point, this is a serialize details as
+    if "json" == details_as {
+        if let Some(res) = compose_entry_details_response(req, res_params).await {
+            return Some(res);
+        }
+    }
+
+    Some(last_resort_response::build_response(
+        StatusCode::NOT_FOUND,
+        NOT_FOUND_404,
+    ))
+}
+
+fn get_uri_query_map(req: &Request<Incoming>) -> Option<HashMap<String, String>> {
     let params = match req.uri().query() {
         Some(prms) => prms,
         _ => return None,
@@ -51,20 +132,11 @@ pub async fn build_response(
         return None;
     }
 
-    let params_map = form_urlencoded::parse(params.as_bytes())
-        .into_owned()
-        .collect::<HashMap<String, String>>();
-
-    let serialize_as = match params_map.get("details_as") {
-        Some(srlz) => srlz,
-        _ => return None,
-    };
-
-    if "json" != serialize_as {
-        return None;
-    }
-
-    compose_entry_details_response(req, res_params).await
+    Some(
+        form_urlencoded::parse(params.as_bytes())
+            .into_owned()
+            .collect::<HashMap<String, String>>(),
+    )
 }
 
 async fn compose_entry_details_response(
@@ -81,7 +153,7 @@ async fn compose_entry_details_response(
         _ => return None,
     };
 
-    // immediately drop symlink, feels dangerous
+    // Drop symlink, feels dangerous
     if metadata.is_symlink() {
         return None;
     }
@@ -91,36 +163,35 @@ async fn compose_entry_details_response(
         _ => build_file_entry(&metadata, &uri_path, &res_params.directory),
     };
 
-    match compose_response(details).await {
-        Some(res) => Some(res),
-        _ => Some(last_resort_response::build_response(
-            StatusCode::NOT_FOUND,
-            NOT_FOUND_404,
-        )),
-    }
+    compose_response(details)
 }
 
+// This should be optional >>>????
 fn build_file_entry(
     metadata: &Metadata,
     req_path: &Path,
     base_path: &Path,
-) -> Option<EntryDetails> {
-    let details = create_entry_details(metadata, req_path, base_path);
-
-    Some(EntryDetails {
-        details,
-        entries: Vec::new(),
-    })
+) -> Option<EntryDetailsJson> {
+    match create_entry_details(metadata, req_path, base_path) {
+        Some(details) => Some(EntryDetailsJson {
+            details,
+            entries: Vec::new(),
+        }),
+        _ => None,
+    }
 }
 
 async fn build_directory_entry(
     metadata: &Metadata,
     req_path: &Path,
     base_path: &Path,
-) -> Option<EntryDetails> {
-    let details = create_entry_details(metadata, req_path, base_path);
+) -> Option<EntryDetailsJson> {
+    let details = match create_entry_details(metadata, req_path, base_path) {
+        Some(deets) => deets,
+        _ => return None,
+    };
 
-    let mut entry_details = EntryDetails {
+    let mut entry_details = EntryDetailsJson {
         details,
         entries: Vec::new(),
     };
@@ -137,9 +208,9 @@ async fn build_directory_entry(
                 _ => continue,
             };
 
-            entry_details
-                .entries
-                .push(create_entry_details(&metadata, &entry.path(), base_path));
+            if let Some(details) = create_entry_details(&metadata, &entry.path(), base_path) {
+                entry_details.entries.push(details);
+            }
 
             continue;
         }
@@ -150,25 +221,26 @@ async fn build_directory_entry(
     Some(entry_details)
 }
 
-fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &Path) -> FileDetails {
+fn create_entry_details(
+    metadata: &Metadata,
+    req_path: &Path,
+    base_path: &Path,
+) -> Option<FileDetailsJson> {
     let file_name = match req_path.file_name() {
         Some(flnm) => flnm.to_string_lossy().to_string(),
         None => "[unable to parse filename]".to_string(),
     };
 
-    // strip path from base path
-    // make sure url_path starts with / and ends with / if a directory
-
     let url_path = match get_url_path_from_filepath(metadata, base_path, req_path) {
         Some(p) => p,
-        _ => "".to_string(),
+        _ => return None,
     };
 
     let created_at = get_duration_since_as_ms(metadata.created());
     let accessed_at = get_duration_since_as_ms(metadata.accessed());
     let modified_at = get_duration_since_as_ms(metadata.modified());
 
-    FileDetails {
+    Some(FileDetailsJson {
         is_dir: metadata.is_dir(),
         is_file: metadata.is_file(),
         is_symlink: metadata.is_symlink(),
@@ -177,12 +249,12 @@ fn create_entry_details(metadata: &Metadata, req_path: &Path, base_path: &Path) 
         created_at,
         accessed_at,
         modified_at,
-        size: metadata.len(),
-    }
+        size: metadata.len().to_string(),
+    })
 }
 
-async fn compose_response(
-    details_opt: Option<EntryDetails>,
+fn compose_response(
+    details_opt: Option<EntryDetailsJson>,
 ) -> Option<Result<BoxedResponse, hyper::http::Error>> {
     let details = match details_opt {
         Some(deets) => deets,
@@ -206,17 +278,16 @@ async fn compose_response(
     )
 }
 
-fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Option<u128> {
+fn get_duration_since_as_ms(timestamp_result: Result<SystemTime, IoError>) -> Option<String> {
     if let Ok(timestamp) = timestamp_result {
         if let Ok(duration) = timestamp.duration_since(SystemTime::UNIX_EPOCH) {
-            return Some(duration.as_millis());
+            return Some(duration.as_millis().to_string());
         }
     }
 
     None
 }
 
-// get url path from path(directory, pathbuf)
 pub fn get_url_path_from_filepath(
     metadata: &Metadata,
     directory: &Path,
