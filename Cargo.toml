@@ -15,4 +15,3 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tokio-util = "0.7"
 tokio = { version = "1.51", features = ["full"] }
-tokio_stream =  { version = "0.1" }
