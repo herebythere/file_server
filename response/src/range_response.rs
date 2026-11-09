@@ -171,7 +171,7 @@ fn build_window_range(range_str: &str, size: u64) -> Option<(u64, u64)> {
                 end_int = size;
             }
 
-            if start_int < end_int {
+            if start_int <= end_int {
                 return Some((start_int, end_int));
             }
 
@@ -236,5 +236,10 @@ async fn compose_single_range_response(
 }
 
 fn build_content_range_header_str(start: u64, end: u64, file_size: u64) -> String {
-    "bytes ".to_string() + &start.to_string() + "-" + &end.to_string() + "/" + &file_size.to_string()
+    "bytes ".to_string()
+        + &start.to_string()
+        + "-"
+        + &end.to_string()
+        + "/"
+        + &file_size.to_string()
 }
