@@ -65,7 +65,7 @@ async fn attempt_range_response(
         return None;
     }
 
-    let ranges = match get_ranges(range_header, metadata.len()) {
+    let ranges = match get_ranges(range_header, metadata.len() - 1) {
         Some(rngs) => rngs,
         _ => {
             return Some(last_resort_response::build_response(
@@ -195,7 +195,7 @@ fn build_window_range(range_str: &str, size: u64) -> Option<(u64, u64)> {
 
 async fn compose_single_range_response(
     mut file: File,
-    size: u64,
+    file_size: u64,
     content_type: &str,
     content_encoding: Option<String>,
     ranges: Vec<(u64, u64)>,
@@ -215,7 +215,7 @@ async fn compose_single_range_response(
         return None;
     };
 
-    let content_range_header = build_content_range_header_str(start, end, size);
+    let content_range_header = build_content_range_header_str(start, end, file_size);
     let buffer_size = end - start + 1;
 
     let mut builder = Response::builder()
@@ -235,6 +235,6 @@ async fn compose_single_range_response(
     Some(builder.body(boxed_body))
 }
 
-fn build_content_range_header_str(start: u64, end: u64, size: u64) -> String {
-    "bytes ".to_string() + &start.to_string() + "-" + &end.to_string() + "/" + &size.to_string()
+fn build_content_range_header_str(start: u64, end: u64, file_size: u64) -> String {
+    "bytes ".to_string() + &start.to_string() + "-" + &end.to_string() + "/" + &file_size.to_string()
 }
